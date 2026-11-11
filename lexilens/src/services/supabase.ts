@@ -48,17 +48,21 @@ export async function getExtensionUser(): Promise<any | null> {
     const { data } = await supabase.auth.getSession();
     if (data.session?.user) return data.session.user;
 
-    // 1. Check saved session in local storage
+    // 1. Check saved user in local storage (instant, zero network latency)
     if (typeof chrome !== 'undefined' && chrome.storage?.local) {
       const stored = await chrome.storage.local.get(['lexilens_saved_user', 'lexilens_session']);
-      if (stored.lexilens_session?.access_token) {
-        const { data: refreshed } = await supabase.auth.setSession({
-          access_token: stored.lexilens_session.access_token,
-          refresh_token: stored.lexilens_session.refresh_token,
-        });
-        if (refreshed?.user) return refreshed.user;
+      if (stored.lexilens_saved_user) {
+        // Restore supabase client session in the background asynchronously
+        if (stored.lexilens_session?.access_token) {
+          supabase.auth
+            .setSession({
+              access_token: stored.lexilens_session.access_token,
+              refresh_token: stored.lexilens_session.refresh_token,
+            })
+            .catch(() => {});
+        }
+        return stored.lexilens_saved_user;
       }
-      if (stored.lexilens_saved_user) return stored.lexilens_saved_user;
     }
 
     // 2. Check shared Cookie from Web App
@@ -159,7 +163,13 @@ export async function signOutExtension() {
       chrome.cookies.remove({ url: 'http://localhost:5173', name: 'lexilens_auth' }).catch(() => {});
     }
   }
-  return await supabase.auth.signOut();
+  try {
+    await Promise.race([
+      supabase.auth.signOut(),
+      new Promise((res) => setTimeout(res, 1000)),
+    ]);
+  } catch {}
+  return { error: null };
 }
 
 export async function syncAllLocalCardsToCloud(userId: string): Promise<number> {
@@ -181,13 +191,28 @@ export async function syncAllLocalCardsToCloud(userId: string): Promise<number> 
   }
 }
 
-export async function setSessionFromTokenData(tokenData: {
-  access_token?: string;
-  refresh_token?: string;
-  user?: any;
-}): Promise<any | null> {
+export async function setSessionFromTokenData(
+  tokenData: {
+    access_token?: string;
+    refresh_token?: string;
+    user?: any;
+  },
+  skipCookieSync = false
+): Promise<any | null> {
   try {
     const rawUser = tokenData.user || null;
+    if (!rawUser?.id && !rawUser?.email) return null;
+
+    // Check if session is already stored and identical to prevent infinite feedback loops
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      const stored = await chrome.storage.local.get(['lexilens_saved_user', 'lexilens_session']);
+      if (
+        stored.lexilens_saved_user?.email === rawUser.email &&
+        stored.lexilens_session?.access_token === tokenData.access_token
+      ) {
+        return stored.lexilens_saved_user;
+      }
+    }
 
     // Immediately persist so the extension UI reflects user identity without blocking
     if (typeof chrome !== 'undefined' && chrome.storage?.local) {
@@ -220,8 +245,8 @@ export async function setSessionFromTokenData(tokenData: {
               },
             });
           }
-          // Also sync to Web App cookies so Web App gets the session automatically
-          if (chrome.cookies) {
+          // Only sync back to Web App cookies if NOT triggered by a cookie change
+          if (!skipCookieSync && chrome.cookies) {
             const cookieVal = encodeURIComponent(
               JSON.stringify({
                 access_token: tokenData.access_token,
@@ -395,12 +420,17 @@ export async function syncCardToCloud(rawCard: any, userId: string): Promise<boo
 export async function fetchCardsFromCloud(userId: string): Promise<any[]> {
   if (!userId) return [];
   try {
-    const { data, error } = await supabase
+    const fetchPromise = supabase
       .from('cards')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
+    const timeoutPromise = new Promise<{ data: null; error: any }>((resolve) =>
+      setTimeout(() => resolve({ data: null, error: new Error('Timeout') }), 3500)
+    );
+
+    const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
     if (!error && data) {
       return data;
     }

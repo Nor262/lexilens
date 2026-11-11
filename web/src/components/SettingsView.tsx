@@ -22,12 +22,14 @@ interface SettingsViewProps {
   profile: UserProfile;
   onUpdateTarget: (target: number) => void;
   onResetData: () => void;
+  onLogout: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
   profile,
   onUpdateTarget,
   onResetData,
+  onLogout,
 }) => {
   const [geminiKey, setGeminiKey] = useState<string>(
     localStorage.getItem('lexilens_gemini_key') || ''
@@ -103,8 +105,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    window.location.reload();
+    onLogout();
   };
 
   return (

@@ -281,6 +281,33 @@ export const App: React.FC = () => {
     }
   };
 
+  // Explicit Logout Handler
+  const handleLogout = async () => {
+    document.cookie = 'lexilens_auth=; path=/; max-age=0; SameSite=Lax';
+    document.cookie = 'lexilens_auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+
+    await supabase.auth.signOut();
+    window.postMessage({ type: 'LEXILENS_AUTH_LOGOUT' }, '*');
+
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith('sb-') || k.includes('-auth-token'))) {
+        localStorage.removeItem(k);
+      }
+    }
+
+    setSessionUser(null);
+    setCards([]);
+    setReviews([]);
+    setProfile({
+      id: '',
+      display_name: 'Học viên',
+      daily_target: 20,
+      current_streak: 0,
+      last_active_date: new Date().toISOString().slice(0, 10),
+    });
+  };
+
   // 1. Loading screen while verifying auth session with smooth shimmer & pulse
   if (authLoading) {
     return (
@@ -360,6 +387,7 @@ export const App: React.FC = () => {
                 profile={profile}
                 onUpdateTarget={handleUpdateTarget}
                 onResetData={handleResetData}
+                onLogout={handleLogout}
               />
             )}
           </motion.div>

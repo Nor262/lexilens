@@ -68,12 +68,24 @@ export const SidepanelApp: React.FC = () => {
             const su = sRes?.data?.user || sRes?.data;
             if (sRes?.success && (su?.id || su?.email)) {
               setCurrentUser(su);
+            } else {
+              setCurrentUser(null);
             }
           });
         }
       });
     };
     syncUser();
+
+    const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {
+      if (area === 'local' && 'lexilens_saved_user' in changes) {
+        setCurrentUser(changes.lexilens_saved_user.newValue || null);
+      }
+    };
+    if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
+      chrome.storage.onChanged.addListener(handleStorageChange);
+    }
+
     const userInterval = setInterval(syncUser, 2000);
 
     // 2. Check if there is an active lookup triggered from Context Menu
@@ -94,6 +106,9 @@ export const SidepanelApp: React.FC = () => {
     chrome.runtime.onMessage.addListener(messageListener);
     return () => {
       chrome.runtime.onMessage.removeListener(messageListener);
+      if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
+        chrome.storage.onChanged.removeListener(handleStorageChange);
+      }
       clearInterval(userInterval);
     };
   }, []);

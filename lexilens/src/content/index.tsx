@@ -161,6 +161,10 @@ const ContentApp: React.FC = () => {
         }).catch(() => {});
       }
 
+      if (event.data?.type === 'LEXILENS_AUTH_LOGOUT') {
+        chrome.runtime.sendMessage({ type: 'SIGN_OUT' }).catch(() => {});
+      }
+
       // 2. Web asking for Extension session: Extension replies with current session
       if (event.data?.type === 'LEXILENS_REQUEST_EXTENSION_SESSION') {
         chrome.runtime.sendMessage({ type: 'GET_USER' }, (res) => {

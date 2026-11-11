@@ -48,11 +48,11 @@ if (typeof chrome !== 'undefined' && chrome.cookies?.onChanged) {
   chrome.cookies.onChanged.addListener((changeInfo) => {
     if (changeInfo.cookie?.name === 'lexilens_auth') {
       if (changeInfo.removed) {
-        signOutExtension();
+        signOutExtension().catch(() => {});
       } else if (changeInfo.cookie?.value) {
         try {
           const tokenData = JSON.parse(decodeURIComponent(changeInfo.cookie.value));
-          setSessionFromTokenData(tokenData);
+          setSessionFromTokenData(tokenData, true);
         } catch {}
       }
     }

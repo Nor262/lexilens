@@ -53,6 +53,8 @@ const PopupApp: React.FC = () => {
             const su = sRes?.data?.user || sRes?.data;
             if (sRes?.success && (su?.id || su?.email)) {
               setCurrentUser(su);
+            } else {
+              setCurrentUser(null);
             }
           });
         }
@@ -60,20 +62,35 @@ const PopupApp: React.FC = () => {
     };
 
     syncUser();
+
+    // Instant reactive listener: When storage updates, update state immediately without waiting for interval
+    const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {
+      if (area === 'local' && 'lexilens_saved_user' in changes) {
+        setCurrentUser(changes.lexilens_saved_user.newValue || null);
+      }
+    };
+    if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
+      chrome.storage.onChanged.addListener(handleStorageChange);
+    }
+
     // Fast periodic check in case user is completing auth on an open tab
     const userInterval = setInterval(syncUser, 1500);
     const stopTimer = setTimeout(() => clearInterval(userInterval), 15000);
 
     // Check if user currently has highlighted text on active tab
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const activeTabId = tabs[0]?.id;
-      if (activeTabId) {
-        try {
-          chrome.scripting.executeScript(
-            {
-              target: { tabId: activeTabId },
-              func: () => window.getSelection()?.toString().trim() || '',
-            },
+      const activeTab = tabs[0];
+      const activeTabId = activeTab?.id;
+      const tabUrl = activeTab?.url || '';
+      if (!activeTabId || tabUrl.startsWith('chrome://') || tabUrl.startsWith('chrome-extension://')) {
+        return;
+      }
+      try {
+        chrome.scripting.executeScript(
+          {
+            target: { tabId: activeTabId },
+            func: () => window.getSelection()?.toString().trim() || '',
+          },
             (results) => {
               if (chrome.runtime.lastError) return;
               const selectedText = results?.[0]?.result;
@@ -86,10 +103,12 @@ const PopupApp: React.FC = () => {
         } catch {
           // Scripting might be restricted on internal pages, ignore
         }
-      }
     });
 
     return () => {
+      if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
+        chrome.storage.onChanged.removeListener(handleStorageChange);
+      }
       clearInterval(userInterval);
       clearTimeout(stopTimer);
     };
