@@ -23,14 +23,13 @@ interface NavigationProps {
   activeTab: TabType;
   setActiveTab: (tab: TabType) => void;
   dueCount: number;
-  onOpenInstallModal: () => void;
+  onOpenInstallModal?: () => void;
 }
 
 export const Navigation: React.FC<NavigationProps> = ({
   activeTab,
   setActiveTab,
   dueCount,
-  onOpenInstallModal,
 }) => {
   const navItems: NavItem[] = [
     { id: 'dashboard', label: 'Tổng quan', icon: LayoutDashboard },
@@ -91,27 +90,6 @@ export const Navigation: React.FC<NavigationProps> = ({
                 );
               })}
             </nav>
-
-            <div className="h-5 w-px bg-outline-hairline" />
-
-            <button
-              onClick={onOpenInstallModal}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary-tint/35 hover:bg-primary-tint/50 text-primary border border-primary/20 text-xs font-medium font-sans transition-all active:scale-95 shadow-sm"
-            >
-              <Puzzle className="w-3.5 h-3.5 stroke-[2]" />
-              <span>Cài đặt Extension</span>
-            </button>
-          </div>
-
-          {/* Mobile Right Quick Action: Download Extension button */}
-          <div className="md:hidden flex items-center gap-2">
-            <button
-              onClick={onOpenInstallModal}
-              className="flex items-center gap-1 text-[11px] font-medium bg-primary-tint/35 text-primary px-2.5 py-1 rounded-full border border-primary/25 active:scale-95"
-            >
-              <Puzzle className="w-3.5 h-3.5 stroke-[2]" />
-              <span>Tải Extension</span>
-            </button>
           </div>
         </div>
       </header>
