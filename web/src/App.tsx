@@ -487,7 +487,7 @@ export const App: React.FC = () => {
       <InstallExtensionModal
         isOpen={isInstallModalOpen}
         onClose={() => setIsInstallModalOpen(false)}
-        downloadUrl="https://github.com/Nor262/lexilens/releases/download/v1.0.0/lexilens-chrome-extension.zip"
+        downloadUrl="https://github.com/Nor262/lexilens/raw/master/lexilens-chrome-extension.zip"
       />
     </div>
   );
