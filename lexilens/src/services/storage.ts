@@ -3,7 +3,7 @@ import { isCardDueToday } from './fsrs';
 
 const DEFAULT_SETTINGS: UserSettings = {
   geminiApiKey: '',
-  preferredModel: 'gemini-2.5-flash',
+  preferredModel: 'gemini-3.0-flash',
   defaultTopic: 'auto',
   dailyReminderHour: 20,
   customTopics: ['CNTT & AI', 'Kinh tế & Tài chính', 'Học thuật & NCKH', 'Văn hóa & Xã hội'],
@@ -31,8 +31,11 @@ export async function getSettings(): Promise<UserSettings> {
     }
     chrome.storage.local.get(['settings'], (res) => {
       const merged = { ...DEFAULT_SETTINGS, ...(res.settings || {}) };
-      if (merged.preferredModel === 'gemini-2.0-flash') {
-        merged.preferredModel = 'gemini-2.5-flash';
+      if (
+        merged.preferredModel === 'gemini-2.0-flash' ||
+        merged.preferredModel === 'gemini-2.5-flash'
+      ) {
+        merged.preferredModel = 'gemini-3.0-flash';
       }
       resolve(merged);
     });

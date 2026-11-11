@@ -8,7 +8,7 @@ import '../styles/global.css';
 const OptionsApp: React.FC = () => {
   const [settings, setSettings] = useState<UserSettings>({
     geminiApiKey: '',
-    preferredModel: 'gemini-2.5-flash',
+    preferredModel: 'gemini-3.0-flash',
     defaultTopic: 'auto',
     dailyReminderHour: 20,
     customTopics: [],
@@ -19,10 +19,10 @@ const OptionsApp: React.FC = () => {
   const [testStatus, setTestStatus] = useState<string | null>(null);
   const [testing, setTesting] = useState<boolean>(false);
   const [modelOptions, setModelOptions] = useState<string[]>([
-    'gemini-2.5-flash',
-    'gemini-2.5-pro',
+    'gemini-3.0-flash',
     'gemini-1.5-flash',
     'gemini-1.5-flash-latest',
+    'gemini-2.5-flash',
     'gemini-1.5-pro',
   ]);
 
@@ -30,8 +30,12 @@ const OptionsApp: React.FC = () => {
     chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (res) => {
       if (res?.success && res.data) {
         const loaded = res.data;
-        if (loaded.preferredModel === 'gemini-2.0-flash' || !loaded.preferredModel) {
-          loaded.preferredModel = 'gemini-2.5-flash';
+        if (
+          loaded.preferredModel === 'gemini-2.0-flash' ||
+          loaded.preferredModel === 'gemini-2.5-flash' ||
+          !loaded.preferredModel
+        ) {
+          loaded.preferredModel = 'gemini-3.0-flash';
         }
         setSettings(loaded);
       }
@@ -90,12 +94,12 @@ const OptionsApp: React.FC = () => {
         });
       };
 
-      // Collect all candidate models to test (prioritize 2.5-flash)
+      // Collect all candidate models to test (prioritize 3.0-flash and 1.5-flash)
       const candidateList: { m: string; v: string }[] = [];
 
-      // 1. First priority: Google's recommended gemini-2.5-flash
-      candidateList.push({ m: 'gemini-2.5-flash', v: 'v1beta' });
-      candidateList.push({ m: 'gemini-2.5-flash', v: 'v1' });
+      // 1. First priority: Google's recommended gemini-3.0-flash
+      candidateList.push({ m: 'gemini-3.0-flash', v: 'v1beta' });
+      candidateList.push({ m: 'gemini-3.0-flash', v: 'v1' });
 
       // 2. Discovered models from ListModels
       for (const d of discovered) {
@@ -105,16 +109,21 @@ const OptionsApp: React.FC = () => {
       }
 
       // 3. User preferred model if different
-      if (settings.preferredModel && settings.preferredModel !== 'gemini-2.5-flash') {
+      if (
+        settings.preferredModel &&
+        settings.preferredModel !== 'gemini-3.0-flash' &&
+        settings.preferredModel !== 'gemini-2.0-flash' &&
+        settings.preferredModel !== 'gemini-2.5-flash'
+      ) {
         candidateList.push({ m: settings.preferredModel, v: 'v1beta' });
         candidateList.push({ m: settings.preferredModel, v: 'v1' });
       }
 
       const knownFallbacks = [
-        'gemini-2.5-flash',
-        'gemini-2.5-pro',
+        'gemini-3.0-flash',
         'gemini-1.5-flash',
         'gemini-1.5-flash-latest',
+        'gemini-2.5-flash',
         'gemini-1.5-pro',
       ];
 

@@ -1,6 +1,6 @@
 import { WordLookupResult, SentenceAnalysisResult, OCRResult } from '../types';
 
-const DEFAULT_MODEL = 'gemini-2.5-flash';
+const DEFAULT_MODEL = 'gemini-3.0-flash';
 
 export interface AvailableModel {
   name: string;
@@ -65,9 +65,10 @@ export function pickBestModel(models: AvailableModel[]): AvailableModel | null {
   if (!models || models.length === 0) return null;
 
   const priorityOrder = [
-    /gemini-2\.5-flash/i,
+    /gemini-3[.-]0-flash/i,
+    /gemini-3/i,
     /gemini-1\.5-flash/i,
-    /gemini-2\.5-pro/i,
+    /gemini-2\.5-flash/i,
     /gemini-1\.5-pro/i,
     /flash/i,
     /gemini/i,
@@ -87,24 +88,24 @@ export function pickBestModel(models: AvailableModel[]): AvailableModel | null {
 async function callGemini(apiKey: string, model: string, contents: any[]): Promise<string> {
   const candidateModels: { name: string; apiVersion: 'v1beta' | 'v1' }[] = [];
 
-  // Always prioritize gemini-2.5-flash first as Google now requires for all new keys
-  candidateModels.push({ name: 'gemini-2.5-flash', apiVersion: 'v1beta' });
-  candidateModels.push({ name: 'gemini-2.5-flash', apiVersion: 'v1' });
+  const effectiveModel =
+    model && model !== 'gemini-2.0-flash' && model !== 'gemini-2.5-flash'
+      ? model
+      : DEFAULT_MODEL;
 
-  if (model && model !== 'gemini-2.5-flash') {
-    candidateModels.push({ name: model, apiVersion: 'v1beta' });
-    candidateModels.push({ name: model, apiVersion: 'v1' });
-  }
+  candidateModels.push({ name: effectiveModel, apiVersion: 'v1beta' });
+  candidateModels.push({ name: effectiveModel, apiVersion: 'v1' });
 
-  const fallbackNames = [
-    'gemini-2.5-flash',
-    'gemini-2.5-pro',
+  const priorityFallbackNames = [
+    'gemini-3.0-flash',
+    'gemini-3-flash-preview',
     'gemini-1.5-flash',
     'gemini-1.5-flash-latest',
+    'gemini-2.5-flash',
     'gemini-1.5-pro',
   ];
 
-  for (const fb of fallbackNames) {
+  for (const fb of priorityFallbackNames) {
     if (!candidateModels.some((c) => c.name === fb && c.apiVersion === 'v1beta')) {
       candidateModels.push({ name: fb, apiVersion: 'v1beta' });
     }
@@ -131,9 +132,14 @@ async function callGemini(apiKey: string, model: string, contents: any[]): Promi
   };
 
   let lastErrorText = '';
+  const attempted = new Set<string>();
 
   // 1. Try static candidates in order
   for (const candidate of candidateModels) {
+    const key = `${candidate.apiVersion}/${candidate.name}`;
+    if (attempted.has(key)) continue;
+    attempted.add(key);
+
     try {
       const response = await makeRequest(candidate.name, candidate.apiVersion);
       if (response.ok) {
@@ -155,23 +161,41 @@ async function callGemini(apiKey: string, model: string, contents: any[]): Promi
     }
   }
 
-  // 2. Dynamic discovery via Google ModelService.ListModels
+  // 2. Dynamic discovery via Google ModelService.ListModels: try every discovered model
   try {
     console.info('[LexiLens] Discovering available models via ModelService.ListModels...');
     const available = await fetchAvailableModels(apiKey);
-    const best = pickBestModel(available);
-    if (best) {
-      console.info(`[LexiLens] Selected discovered model: ${best.name} (${best.apiVersion})`);
-      const response = await makeRequest(best.name, best.apiVersion);
-      if (response.ok) {
-        const data = await response.json();
-        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) {
-          return cleanJsonString(text);
+
+    const sorted = [...available].sort((a, b) => {
+      const score = (name: string) => {
+        if (/gemini-3[.-]0-flash/i.test(name)) return 100;
+        if (/gemini-3/i.test(name)) return 90;
+        if (/gemini-1\.5-flash/i.test(name)) return 80;
+        if (/gemini-2\.5-flash/i.test(name)) return 70;
+        if (/flash/i.test(name)) return 60;
+        return 10;
+      };
+      return score(b.name) - score(a.name);
+    });
+
+    for (const item of sorted) {
+      const key = `${item.apiVersion}/${item.name}`;
+      if (attempted.has(key)) continue;
+      attempted.add(key);
+
+      try {
+        console.info(`[LexiLens] Trying discovered model: ${item.name} (${item.apiVersion})`);
+        const response = await makeRequest(item.name, item.apiVersion);
+        if (response.ok) {
+          const data = await response.json();
+          const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) {
+            return cleanJsonString(text);
+          }
+        } else {
+          lastErrorText = await response.text();
         }
-      } else {
-        lastErrorText = await response.text();
-      }
+      } catch {}
     }
   } catch (discoveryErr) {
     console.warn('[LexiLens] Dynamic model discovery failed:', discoveryErr);
