@@ -19,7 +19,7 @@ export const FloatingTrigger: React.FC<FloatingTriggerProps> = ({ x, y, onClick 
         e.stopPropagation();
       }}
       style={{
-        position: 'absolute',
+        position: 'fixed',
         left: `${x}px`,
         top: `${y}px`,
         zIndex: 2147483647,

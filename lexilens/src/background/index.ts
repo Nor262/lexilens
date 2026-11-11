@@ -27,6 +27,70 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 // Update badge on extension launch
 updateExtensionBadge();
 
+// Setup Context Menu for right-click text selection
+function setupContextMenu() {
+  try {
+    chrome.contextMenus.removeAll(() => {
+      chrome.contextMenus.create({
+        id: 'lexilens-translate-sidepanel',
+        title: 'Dịch bằng LexiLens: "%s"',
+        contexts: ['selection'],
+      });
+    });
+  } catch (err) {
+    console.warn('[LexiLens] Could not setup context menu:', err);
+  }
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  setupContextMenu();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  setupContextMenu();
+});
+
+// Context Menu Click Handler -> Opens Sidepanel and triggers translation
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId === 'lexilens-translate-sidepanel' && info.selectionText) {
+    const selectedText = info.selectionText.trim();
+    if (!selectedText) return;
+
+    if (tab?.windowId) {
+      // @ts-ignore
+      if (chrome.sidePanel && chrome.sidePanel.open) {
+        try {
+          // @ts-ignore
+          await chrome.sidePanel.open({ windowId: tab.windowId });
+        } catch (e) {
+          console.warn('[LexiLens] Failed opening sidePanel:', e);
+        }
+      }
+    }
+
+    const payload = {
+      text: selectedText,
+      pageTitle: tab?.title || 'Trang web',
+      pageUrl: tab?.url || '',
+      timestamp: Date.now(),
+    };
+
+    try {
+      await chrome.storage.local.set({ lexilens_active_lookup: payload });
+    } catch (e) {
+      console.warn(e);
+    }
+
+    // Send direct runtime message to sidepanel if already mounted
+    chrome.runtime.sendMessage({
+      type: 'SIDEPANEL_TRIGGER_LOOKUP',
+      payload,
+    }).catch(() => {
+      // Sidepanel is loading, local storage handles it
+    });
+  }
+});
+
 // Listen to keyboard shortcut commands (e.g. Alt+Shift+X)
 chrome.commands.onCommand.addListener(async (command) => {
   if (command === 'capture_screen') {

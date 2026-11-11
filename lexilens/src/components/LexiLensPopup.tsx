@@ -143,15 +143,15 @@ export const LexiLensPopup: React.FC<LexiLensPopupProps> = ({
     }
   };
 
-  // Prevent popup from going offscreen
+  // Prevent popup from going offscreen with fixed coordinates
   const popupWidth = 390;
   const left = Math.min(Math.max(10, x), window.innerWidth - popupWidth - 20);
-  const top = y + 12;
+  const top = Math.max(10, Math.min(window.innerHeight - 500, y + 8));
 
   return (
     <div
       style={{
-        position: 'absolute',
+        position: 'fixed',
         left: `${left}px`,
         top: `${top}px`,
         width: `${popupWidth}px`,
