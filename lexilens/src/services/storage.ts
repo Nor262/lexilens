@@ -30,7 +30,11 @@ export async function getSettings(): Promise<UserSettings> {
       return;
     }
     chrome.storage.local.get(['settings'], (res) => {
-      resolve({ ...DEFAULT_SETTINGS, ...(res.settings || {}) });
+      const merged = { ...DEFAULT_SETTINGS, ...(res.settings || {}) };
+      if (merged.preferredModel === 'gemini-2.0-flash') {
+        merged.preferredModel = 'gemini-2.5-flash';
+      }
+      resolve(merged);
     });
   });
 }

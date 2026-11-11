@@ -65,14 +65,8 @@ export function pickBestModel(models: AvailableModel[]): AvailableModel | null {
   if (!models || models.length === 0) return null;
 
   const priorityOrder = [
-    /gemini-3\.0-flash/i,
-    /gemini-3-flash/i,
     /gemini-2\.5-flash/i,
-    /gemini-2\.0-flash/i,
-    /gemini-1\.5-flash-latest/i,
     /gemini-1\.5-flash/i,
-    /gemini-1\.5-flash-8b/i,
-    /gemini-3\.0-pro/i,
     /gemini-2\.5-pro/i,
     /gemini-1\.5-pro/i,
     /flash/i,
@@ -105,12 +99,8 @@ async function callGemini(apiKey: string, model: string, contents: any[]): Promi
   const fallbackNames = [
     'gemini-2.5-flash',
     'gemini-2.5-pro',
-    'gemini-3.0-flash',
-    'gemini-2.0-flash',
-    'gemini-1.5-flash-latest',
     'gemini-1.5-flash',
-    'gemini-1.5-flash-8b',
-    'gemini-3.0-pro',
+    'gemini-1.5-flash-latest',
     'gemini-1.5-pro',
   ];
 

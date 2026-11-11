@@ -8,6 +8,7 @@ import {
   signUpExtension,
   signOutExtension,
   tryAutoSyncFromWebTab,
+  setSessionFromTokenData,
   syncCardToCloud,
   fetchCardsFromCloud,
 } from '../services/supabase';
@@ -53,17 +54,9 @@ async function triggerCropOnTab(tabId: number, url?: string) {
         },
         () => {
           if (!chrome.runtime.lastError) {
-            chrome.scripting.insertCSS(
-              {
-                target: { tabId },
-                files: ['content.css'],
-              },
-              () => {
-                setTimeout(() => {
-                  chrome.tabs.sendMessage(tabId, { type: 'TRIGGER_SCREEN_CROP' });
-                }, 80);
-              }
-            );
+            setTimeout(() => {
+              chrome.tabs.sendMessage(tabId, { type: 'TRIGGER_SCREEN_CROP' });
+            }, 80);
           }
         }
       );
@@ -202,6 +195,12 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
 
         case 'TRY_AUTO_SYNC_AUTH': {
           const user = await tryAutoSyncFromWebTab();
+          sendResponse({ success: !!user, data: user });
+          break;
+        }
+
+        case 'SYNC_SESSION_FROM_PAGE': {
+          const user = await setSessionFromTokenData(message.payload);
           sendResponse({ success: !!user, data: user });
           break;
         }
@@ -383,8 +382,13 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
             return;
           }
 
+          const isUUID = (str?: string) =>
+            str && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
+
+          const cardId = isUUID(rawCard.id) ? rawCard.id : crypto.randomUUID();
+
           const newCard: Flashcard = {
-            id: `card_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            id: cardId,
             user_id: user.id,
             headword: rawCard.headword,
             pos: rawCard.pos || 'word',

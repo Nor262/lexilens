@@ -151,10 +151,22 @@ const ContentApp: React.FC = () => {
     };
     chrome.runtime.onMessage.addListener(messageListener);
 
+    // Listen to Web App auth sync bridge events
+    const webAuthBridgeListener = (event: MessageEvent) => {
+      if (event.data?.type === 'LEXILENS_AUTH_STATE_CHANGE' && event.data?.payload) {
+        chrome.runtime.sendMessage({
+          type: 'SYNC_SESSION_FROM_PAGE',
+          payload: event.data.payload,
+        }).catch(() => {});
+      }
+    };
+    window.addEventListener('message', webAuthBridgeListener);
+
     return () => {
       window.removeEventListener('mouseup', handleMouseUp);
       window.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('message', webAuthBridgeListener);
       chrome.runtime.onMessage.removeListener(messageListener);
     };
   }, []);
@@ -319,16 +331,6 @@ function initLexiLens() {
     shadowRoot.appendChild(styleEl);
   } catch (err) {
     console.warn('[LexiLens] Could not inline style tag:', err);
-  }
-
-  // 2. Link stylesheet fallback
-  try {
-    const linkEl = document.createElement('link');
-    linkEl.rel = 'stylesheet';
-    linkEl.href = chrome.runtime.getURL('content.css');
-    shadowRoot.appendChild(linkEl);
-  } catch (err) {
-    console.warn('[LexiLens] Could not attach link tag:', err);
   }
 
   const root = createRoot(mountPoint);

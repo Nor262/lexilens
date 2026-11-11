@@ -113,18 +113,10 @@ const PopupApp: React.FC = () => {
               alert('Không thể kích hoạt OCR trên tab này: ' + chrome.runtime.lastError.message);
               return;
             }
-            chrome.scripting.insertCSS(
-              {
-                target: { tabId: tab.id! },
-                files: ['content.css'],
-              },
-              () => {
-                setTimeout(() => {
-                  chrome.tabs.sendMessage(tab.id!, { type: 'TRIGGER_SCREEN_CROP' });
-                  window.close();
-                }, 80);
-              }
-            );
+            setTimeout(() => {
+              chrome.tabs.sendMessage(tab.id!, { type: 'TRIGGER_SCREEN_CROP' });
+              window.close();
+            }, 60);
           }
         );
       } else {

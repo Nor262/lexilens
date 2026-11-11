@@ -19,20 +19,21 @@ const OptionsApp: React.FC = () => {
   const [testStatus, setTestStatus] = useState<string | null>(null);
   const [testing, setTesting] = useState<boolean>(false);
   const [modelOptions, setModelOptions] = useState<string[]>([
-    'gemini-3.0-flash',
     'gemini-2.5-flash',
+    'gemini-2.5-pro',
     'gemini-1.5-flash',
     'gemini-1.5-flash-latest',
-    'gemini-1.5-flash-8b',
-    'gemini-3.0-pro',
-    'gemini-2.5-pro',
     'gemini-1.5-pro',
   ]);
 
   useEffect(() => {
     chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (res) => {
       if (res?.success && res.data) {
-        setSettings(res.data);
+        const loaded = res.data;
+        if (loaded.preferredModel === 'gemini-2.0-flash' || !loaded.preferredModel) {
+          loaded.preferredModel = 'gemini-2.5-flash';
+        }
+        setSettings(loaded);
       }
     });
   }, []);
@@ -112,12 +113,8 @@ const OptionsApp: React.FC = () => {
       const knownFallbacks = [
         'gemini-2.5-flash',
         'gemini-2.5-pro',
-        'gemini-3.0-flash',
-        'gemini-2.0-flash',
-        'gemini-1.5-flash-latest',
         'gemini-1.5-flash',
-        'gemini-1.5-flash-8b',
-        'gemini-3.0-pro',
+        'gemini-1.5-flash-latest',
         'gemini-1.5-pro',
       ];
 

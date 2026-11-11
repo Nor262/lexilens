@@ -70,6 +70,22 @@ export async function signOutExtension() {
   return await supabase.auth.signOut();
 }
 
+export async function setSessionFromTokenData(tokenData: { access_token: string; refresh_token: string }): Promise<any | null> {
+  try {
+    const { data, error } = await supabase.auth.setSession({
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token,
+    });
+    if (!error && data?.user) {
+      console.log('[LexiLens] Session successfully synced from Web App:', data.user.email);
+      return data.user;
+    }
+  } catch (err) {
+    console.warn('[LexiLens] setSessionFromTokenData error:', err);
+  }
+  return null;
+}
+
 /**
  * Attempts to automatically capture active user session from open Web App tabs
  */
@@ -87,7 +103,7 @@ export async function tryAutoSyncFromWebTab(): Promise<any | null> {
           func: () => {
             for (let i = 0; i < localStorage.length; i++) {
               const key = localStorage.key(i);
-              if (key && key.includes('-auth-token')) {
+              if (key && (key.includes('-auth-token') || key.startsWith('sb-'))) {
                 const item = localStorage.getItem(key);
                 if (item) {
                   try {
@@ -104,14 +120,8 @@ export async function tryAutoSyncFromWebTab(): Promise<any | null> {
 
         const tokenData = results?.[0]?.result;
         if (tokenData?.access_token && tokenData?.refresh_token) {
-          const { data, error } = await supabase.auth.setSession({
-            access_token: tokenData.access_token,
-            refresh_token: tokenData.refresh_token,
-          });
-          if (!error && data?.user) {
-            console.log('[LexiLens] Successfully synced session from Web App tab:', data.user.email);
-            return data.user;
-          }
+          const user = await setSessionFromTokenData(tokenData);
+          if (user) return user;
         }
       } catch (err) {
         // Tab might be in restricted state, continue to next tab
@@ -130,8 +140,12 @@ export async function syncCardToCloud(rawCard: any, userId: string): Promise<boo
   if (!userId) return false;
 
   try {
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const cleanId = UUID_REGEX.test(rawCard.id) ? rawCard.id : crypto.randomUUID();
+    rawCard.id = cleanId;
+
     const cloudPayload = {
-      id: rawCard.id,
+      id: cleanId,
       user_id: userId,
       headword: rawCard.headword,
       pos: rawCard.pos || 'word',
@@ -146,7 +160,7 @@ export async function syncCardToCloud(rawCard: any, userId: string): Promise<boo
       source_article_title: rawCard.article_title || 'Tài liệu tra cứu',
       source_article_url: rawCard.article_url || '',
       audio_url: rawCard.audio_url || '',
-      due: rawCard.fsrs?.due || new Date().toISOString(),
+      due: rawCard.fsrs?.due ? new Date(rawCard.fsrs.due).toISOString() : new Date().toISOString(),
       stability: rawCard.fsrs?.stability || 2,
       difficulty: rawCard.fsrs?.difficulty || 5,
       elapsed_days: 0,

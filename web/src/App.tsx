@@ -37,6 +37,22 @@ export const App: React.FC = () => {
 
   // Check user session on startup
   useEffect(() => {
+    const broadcastAuth = (session: any) => {
+      if (session?.user && session?.access_token) {
+        window.postMessage(
+          {
+            type: 'LEXILENS_AUTH_STATE_CHANGE',
+            payload: {
+              access_token: session.access_token,
+              refresh_token: session.refresh_token,
+              user: session.user,
+            },
+          },
+          '*'
+        );
+      }
+    };
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setSessionUser(session.user);
@@ -47,6 +63,7 @@ export const App: React.FC = () => {
           display_name: session.user.user_metadata?.full_name || 'Học viên',
         }));
         loadAllData(session.user.id);
+        broadcastAuth(session);
       } else {
         setSessionUser(null);
       }
@@ -65,6 +82,7 @@ export const App: React.FC = () => {
           display_name: session.user.user_metadata?.full_name || 'Học viên',
         }));
         loadAllData(session.user.id);
+        broadcastAuth(session);
       } else {
         setSessionUser(null);
         setCards([]);
@@ -78,6 +96,7 @@ export const App: React.FC = () => {
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.user?.id) {
           loadAllData(session.user.id);
+          broadcastAuth(session);
         }
       });
     };

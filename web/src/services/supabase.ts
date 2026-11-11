@@ -210,7 +210,11 @@ export async function getCards(userId?: string): Promise<Flashcard[]> {
 export async function saveCard(card: Flashcard, userId?: string): Promise<void> {
   if (!userId || userId === 'guest') return;
 
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const cleanId = UUID_REGEX.test(card.id) ? card.id : crypto.randomUUID();
+  card.id = cleanId;
   card.user_id = userId;
+
   const userKey = `lexilens_cards_${userId}`;
   const localCards = await getCards(userId);
   const index = localCards.findIndex((c) => c.id === card.id);
@@ -222,10 +226,33 @@ export async function saveCard(card: Flashcard, userId?: string): Promise<void> 
   localStorage.setItem(userKey, JSON.stringify(localCards));
 
   try {
-    await supabase.from('cards').upsert({
-      ...card,
+    const payload = {
+      id: cleanId,
       user_id: userId,
-    });
+      headword: card.headword,
+      pos: card.pos || 'word',
+      ipa: card.ipa || '',
+      audio_url: card.audio_url || '',
+      meaning_vi: card.meaning_vi,
+      root_meaning: card.root_meaning || '',
+      definition_en: card.definition_en || '',
+      why: card.why || '',
+      collocations: card.collocations || [],
+      sentence: card.sentence,
+      simplified_sentence: card.simplified_sentence || '',
+      source_article_title: card.source_article_title || '',
+      source_article_url: card.source_article_url || '',
+      due: card.due || new Date().toISOString(),
+      stability: card.stability || 2,
+      difficulty: card.difficulty || 5,
+      elapsed_days: card.elapsed_days || 0,
+      scheduled_days: card.scheduled_days || 1,
+      reps: card.reps || 0,
+      lapses: card.lapses || 0,
+      state: card.state || 0,
+      created_at: card.created_at || new Date().toISOString(),
+    };
+    await supabase.from('cards').upsert(payload);
   } catch (err) {
     console.error('Failed to sync card to Supabase:', err);
   }
