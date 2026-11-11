@@ -193,11 +193,14 @@ const ContentApp: React.FC = () => {
 
       // 3. Web asking for Extension cards: Extension replies with stored cards
       if (event.data?.type === 'LEXILENS_REQUEST_EXTENSION_CARDS') {
-        chrome.storage.local.get(['cards'], (cRes) => {
-          if (Array.isArray(cRes?.cards) && cRes.cards.length > 0) {
+        chrome.storage.local.get(['flashcards', 'cards'], (cRes) => {
+          const list = (Array.isArray(cRes?.flashcards) && cRes.flashcards.length > 0)
+            ? cRes.flashcards
+            : (Array.isArray(cRes?.cards) ? cRes.cards : []);
+          if (list.length > 0) {
             window.postMessage({
               type: 'LEXILENS_CARDS_SYNC_PUSH',
-              payload: cRes.cards,
+              payload: list,
             }, '*');
           }
         });
@@ -252,11 +255,14 @@ const ContentApp: React.FC = () => {
       });
 
       // 4. Proactively push any cards saved in extension directly to Web App
-      chrome.storage.local.get(['cards'], (cRes) => {
-        if (Array.isArray(cRes?.cards) && cRes.cards.length > 0) {
+      chrome.storage.local.get(['flashcards', 'cards'], (cRes) => {
+        const list = (Array.isArray(cRes?.flashcards) && cRes.flashcards.length > 0)
+          ? cRes.flashcards
+          : (Array.isArray(cRes?.cards) ? cRes.cards : []);
+        if (list.length > 0) {
           window.postMessage({
             type: 'LEXILENS_CARDS_SYNC_PUSH',
-            payload: cRes.cards,
+            payload: list,
           }, '*');
         }
       });

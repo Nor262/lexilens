@@ -20,6 +20,27 @@ import {
   supabase,
 } from './services/supabase';
 
+function getCachedUserId(): string | null {
+  try {
+    const match = document.cookie.match(/(?:^|;\s*)lexilens_auth=([^;]+)/);
+    if (match) {
+      const parsed = JSON.parse(decodeURIComponent(match[1]));
+      if (parsed?.user?.id) return parsed.user.id;
+    }
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.includes('-auth-token') || key.startsWith('sb-'))) {
+        const item = localStorage.getItem(key);
+        if (item) {
+          const parsed = JSON.parse(item);
+          if (parsed?.user?.id) return parsed.user.id;
+        }
+      }
+    }
+  } catch {}
+  return null;
+}
+
 export const App: React.FC = () => {
   const [sessionUser, setSessionUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState<boolean>(true);
@@ -87,6 +108,9 @@ export const App: React.FC = () => {
               });
               if (data?.session) activeSession = data.session;
             }
+            if (!activeSession && parsed?.user) {
+              activeSession = { user: parsed.user, access_token: parsed.access_token } as any;
+            }
           }
         } catch {}
       }
@@ -137,6 +161,16 @@ export const App: React.FC = () => {
             loadAllData(activeUser.id);
           }
           setAuthLoading(false);
+        } else if (user?.id) {
+          setSessionUser(user);
+          setProfile((prev) => ({
+            ...prev,
+            id: user.id,
+            email: user.email,
+            display_name: user.user_metadata?.full_name || 'Học viên',
+          }));
+          loadAllData(user.id);
+          setAuthLoading(false);
         }
       }
 
@@ -144,9 +178,18 @@ export const App: React.FC = () => {
       if (event.data?.type === 'CARD_SAVED_FROM_EXTENSION' && event.data?.payload) {
         const newCard: Flashcard = event.data.payload;
         setCards((prev) => {
-          if (prev.some((c) => c.id === newCard.id)) return prev;
+          if (
+            prev.some(
+              (c) =>
+                c.id === newCard.id ||
+                (c.headword.toLowerCase() === newCard.headword.toLowerCase() &&
+                  c.meaning_vi === newCard.meaning_vi)
+            )
+          ) {
+            return prev;
+          }
           const updated = [newCard, ...prev];
-          const uid = sessionUser?.id || profile?.id;
+          const uid = sessionUser?.id || profile?.id || getCachedUserId();
           if (uid) {
             localStorage.setItem(`lexilens_cards_${uid}`, JSON.stringify(updated));
             saveCard(newCard, uid).catch(() => {});
@@ -161,17 +204,19 @@ export const App: React.FC = () => {
         if (incomingCards.length > 0) {
           setCards((prev) => {
             const existingIds = new Set(prev.map((c) => c.id));
+            const existingHeadwords = new Set(prev.map((c) => c.headword.toLowerCase()));
             let hasNew = false;
             const merged = [...prev];
             for (const c of incomingCards) {
-              if (!existingIds.has(c.id)) {
+              if (!existingIds.has(c.id) && !existingHeadwords.has(c.headword.toLowerCase())) {
                 merged.push(c);
                 existingIds.add(c.id);
+                existingHeadwords.add(c.headword.toLowerCase());
                 hasNew = true;
               }
             }
             if (hasNew) {
-              const uid = sessionUser?.id || profile?.id;
+              const uid = sessionUser?.id || profile?.id || getCachedUserId();
               if (uid) {
                 localStorage.setItem(`lexilens_cards_${uid}`, JSON.stringify(merged));
                 for (const c of incomingCards) {
@@ -235,8 +280,14 @@ export const App: React.FC = () => {
     setCards(fetchedCards);
     setReviews(fetchedReviews);
 
-    // Request extension to push any local cards
+    // Request extension to push any local cards with slight retries for script injection readiness
     window.postMessage({ type: 'LEXILENS_REQUEST_EXTENSION_CARDS' }, '*');
+    setTimeout(() => {
+      window.postMessage({ type: 'LEXILENS_REQUEST_EXTENSION_CARDS' }, '*');
+    }, 300);
+    setTimeout(() => {
+      window.postMessage({ type: 'LEXILENS_REQUEST_EXTENSION_CARDS' }, '*');
+    }, 1000);
 
     // Compute real streak dynamically from review dates
     const stats = calculateDynamicStats(fetchedCards, fetchedReviews);

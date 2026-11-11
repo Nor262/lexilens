@@ -58,8 +58,11 @@ export async function getFlashcards(): Promise<Flashcard[]> {
       resolve([]);
       return;
     }
-    chrome.storage.local.get(['flashcards'], (res) => {
-      resolve(res.flashcards || []);
+    chrome.storage.local.get(['flashcards', 'cards'], (res) => {
+      const list = (Array.isArray(res.flashcards) && res.flashcards.length > 0)
+        ? res.flashcards
+        : (Array.isArray(res.cards) ? res.cards : []);
+      resolve(list);
     });
   });
 }
@@ -77,7 +80,8 @@ export async function saveFlashcard(card: Flashcard): Promise<{ success: boolean
 
   const updatedCards = [card, ...cards];
   await new Promise<void>((resolve) => {
-    chrome.storage.local.set({ flashcards: updatedCards }, () => {
+    // Save to both keys so any reader is guaranteed to find them
+    chrome.storage.local.set({ flashcards: updatedCards, cards: updatedCards }, () => {
       resolve();
     });
   });
@@ -92,7 +96,7 @@ export async function updateFlashcard(card: Flashcard): Promise<void> {
   if (index !== -1) {
     cards[index] = card;
     await new Promise<void>((resolve) => {
-      chrome.storage.local.set({ flashcards: cards }, () => {
+      chrome.storage.local.set({ flashcards: cards, cards: cards }, () => {
         resolve();
       });
     });
@@ -104,7 +108,7 @@ export async function deleteFlashcard(cardId: string): Promise<void> {
   const cards = await getFlashcards();
   const filtered = cards.filter((c) => c.id !== cardId);
   await new Promise<void>((resolve) => {
-    chrome.storage.local.set({ flashcards: filtered }, () => {
+    chrome.storage.local.set({ flashcards: filtered, cards: filtered }, () => {
       resolve();
     });
   });

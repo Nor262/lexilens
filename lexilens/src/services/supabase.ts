@@ -51,19 +51,25 @@ export async function ensureSupabaseAuth(): Promise<boolean> {
   try {
     const { data } = await supabase.auth.getSession();
     if (data?.session?.access_token) {
+      try {
+        (supabase as any).rest?.headers?.set('Authorization', `Bearer ${data.session.access_token}`);
+      } catch {}
       return true;
     }
 
     if (typeof chrome !== 'undefined' && chrome.storage?.local) {
       const stored = await chrome.storage.local.get(['lexilens_session', 'lexilens_saved_user']);
       if (stored.lexilens_session?.access_token) {
-        const { data: setRes, error } = await supabase.auth.setSession({
-          access_token: stored.lexilens_session.access_token,
-          refresh_token: stored.lexilens_session.refresh_token || '',
-        });
-        if (!error && setRes?.session) {
-          return true;
+        try {
+          (supabase as any).rest?.headers?.set('Authorization', `Bearer ${stored.lexilens_session.access_token}`);
+        } catch {}
+        if (stored.lexilens_session?.refresh_token) {
+          supabase.auth.setSession({
+            access_token: stored.lexilens_session.access_token,
+            refresh_token: stored.lexilens_session.refresh_token,
+          }).catch(() => {});
         }
+        return true;
       }
     }
 
@@ -208,8 +214,10 @@ export async function syncAllLocalCardsToCloud(userId: string): Promise<number> 
   if (!userId || typeof chrome === 'undefined' || !chrome.storage?.local) return 0;
   try {
     await ensureSupabaseAuth();
-    const res = await chrome.storage.local.get(['cards']);
-    const localCards = Array.isArray(res.cards) ? res.cards : [];
+    const res = await chrome.storage.local.get(['flashcards', 'cards']);
+    const localCards = (Array.isArray(res.flashcards) && res.flashcards.length > 0)
+      ? res.flashcards
+      : (Array.isArray(res.cards) ? res.cards : []);
     if (localCards.length === 0) return 0;
 
     let syncedCount = 0;
@@ -217,6 +225,7 @@ export async function syncAllLocalCardsToCloud(userId: string): Promise<number> 
       const ok = await syncCardToCloud(card, userId);
       if (ok) syncedCount++;
     }
+    console.log(`[LexiLens] Synced ${syncedCount}/${localCards.length} local cards to Supabase.`);
     return syncedCount;
   } catch (err) {
     console.warn('[LexiLens] syncAllLocalCardsToCloud error:', err);
@@ -400,6 +409,9 @@ export async function tryAutoSyncFromWebTab(): Promise<any | null> {
 export async function syncCardToCloud(rawCard: any, userId: string): Promise<boolean> {
   if (!userId) return false;
 
+  // Always broadcast to open web tabs immediately so web view updates with zero latency
+  notifyWebTabsOfNewCard(rawCard);
+
   try {
     await ensureSupabaseAuth();
 
@@ -440,8 +452,7 @@ export async function syncCardToCloud(rawCard: any, userId: string): Promise<boo
       return false;
     }
 
-    // Notify any open web app tabs that new card was saved so they can refresh live
-    notifyWebTabsOfNewCard(rawCard);
+    console.log('[LexiLens] Card successfully synced to Supabase Cloud:', rawCard.headword);
     return true;
   } catch (err) {
     console.error('[LexiLens] syncCardToCloud error:', err);

@@ -235,8 +235,12 @@ export async function saveCard(card: Flashcard, userId?: string): Promise<void> 
   card.user_id = userId;
 
   const userKey = `lexilens_cards_${userId}`;
-  const localCards = await getCards(userId);
-  const index = localCards.findIndex((c) => c.id === card.id);
+  let localCards: Flashcard[] = [];
+  try {
+    const raw = localStorage.getItem(userKey);
+    if (raw) localCards = JSON.parse(raw);
+  } catch {}
+  const index = localCards.findIndex((c) => c.id === card.id || c.headword.toLowerCase() === card.headword.toLowerCase());
   if (index >= 0) {
     localCards[index] = card;
   } else {
