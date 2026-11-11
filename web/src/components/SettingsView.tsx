@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Share2,
   CheckCircle,
@@ -9,6 +9,8 @@ import {
   Sparkles,
   Smartphone,
   Shield,
+  Key,
+  RotateCcw,
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { supabase } from '../services/supabase';
@@ -16,14 +18,28 @@ import { supabase } from '../services/supabase';
 interface SettingsViewProps {
   profile: UserProfile;
   onUpdateTarget: (target: number) => void;
+  onResetData: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
   profile,
   onUpdateTarget,
+  onResetData,
 }) => {
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [syncing, setSyncing] = useState<boolean>(false);
+  const [supabaseConnected, setSupabaseConnected] = useState<boolean>(true);
+  const [geminiKey, setGeminiKey] = useState<string>(
+    localStorage.getItem('lexilens_gemini_key') || ''
+  );
+  const [keySaved, setKeySaved] = useState<boolean>(false);
+
+  const handleSaveKey = (e: React.FormEvent) => {
+    e.preventDefault();
+    localStorage.setItem('lexilens_gemini_key', geminiKey.trim());
+    setKeySaved(true);
+    setTimeout(() => setKeySaved(false), 2500);
+  };
 
   const handleSyncWithExtension = () => {
     setSyncing(true);
@@ -106,17 +122,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         )}
       </div>
 
-      {/* Supabase Google Auth Card */}
+      {/* Supabase Cloud Connection */}
       <div className="p-4 sm:p-5 rounded-xl bg-surface-container border border-outline-hairline space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <div className="flex items-center gap-2.5">
             <Shield className="w-5 h-5 text-tertiary stroke-[1.5] shrink-0" />
             <div>
-              <h4 className="font-serif font-bold text-sm text-on-surface">
-                Tài khoản Cloud (Supabase)
-              </h4>
+              <div className="flex items-center gap-2">
+                <h4 className="font-serif font-bold text-sm text-on-surface">
+                  Cơ sở Dữ liệu Cloud (Supabase)
+                </h4>
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Connected" />
+              </div>
               <span className="text-[11px] text-on-surface-muted block truncate max-w-[240px] sm:max-w-none">
-                {profile.email ? profile.email : 'Chế độ Khách (Offline-First)'}
+                {profile.email ? profile.email : 'Chế độ Khách (Offline-First tự động đồng bộ khi đăng nhập)'}
               </span>
             </div>
           </div>
@@ -129,6 +148,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <span>Đăng nhập Google</span>
           </button>
         </div>
+      </div>
+
+      {/* Gemini API Key Configuration */}
+      <div className="p-4 sm:p-5 rounded-xl bg-surface-lowest border border-outline-hairline space-y-3 shadow-academic">
+        <div className="flex items-center gap-2">
+          <Key className="w-4 h-4 text-primary stroke-[1.5]" />
+          <h4 className="font-serif font-bold text-sm text-on-surface">
+            Google Gemini API Key (Tùy chọn)
+          </h4>
+        </div>
+        <p className="text-xs text-on-surface-muted font-sans">
+          Nhập key miễn phí từ Google AI Studio để mở khóa dịch nghĩa ngữ cảnh AI trực tiếp trên Web.
+        </p>
+
+        <form onSubmit={handleSaveKey} className="flex gap-2">
+          <input
+            type="password"
+            value={geminiKey}
+            onChange={(e) => setGeminiKey(e.target.value)}
+            placeholder="AIzaSy..."
+            className="flex-1 px-3 py-2 rounded-lg bg-surface-lowest border border-outline-hairline text-xs font-mono text-on-surface focus:outline-none focus:border-primary"
+          />
+          <button
+            type="submit"
+            className="px-4 py-2 rounded-lg bg-surface-container hover:bg-surface-high border border-outline-hairline text-xs font-medium text-on-surface transition-colors shrink-0"
+          >
+            {keySaved ? 'Đã lưu!' : 'Lưu Key'}
+          </button>
+        </form>
       </div>
 
       {/* Daily Target Setting */}
@@ -162,20 +210,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </div>
 
-      {/* PWA Guidance */}
-      <div className="p-3.5 sm:p-4 rounded-xl bg-surface-low border border-outline-hairline text-xs text-on-surface-muted space-y-1.5">
-        <div className="flex items-center gap-1.5 text-on-surface font-semibold">
-          <Smartphone className="w-4 h-4 text-primary stroke-[1.5]" />
-          <span>Cài đặt PWA lên điện thoại</span>
-        </div>
-        <p className="font-sans leading-relaxed">
-          • Safari (iOS): Bấm biểu tượng <strong>Chia sẻ (Share)</strong> ➔ chọn{' '}
-          <strong>Thêm vào Màn hình chính (Add to Home Screen)</strong>.
-        </p>
-        <p className="font-sans leading-relaxed">
-          • Chrome (Android): Bấm menu <strong>3 chấm</strong> góc trên ➔ chọn{' '}
-          <strong>Cài đặt ứng dụng</strong>.
-        </p>
+      {/* Reset Data Button */}
+      <div className="pt-2">
+        <button
+          onClick={onResetData}
+          className="w-full py-2.5 px-4 rounded-lg bg-surface hover:bg-red-50 text-red-600 hover:text-red-700 text-xs font-medium border border-outline-hairline hover:border-red-200 transition-colors flex items-center justify-center gap-1.5"
+        >
+          <RotateCcw className="w-3.5 h-3.5 stroke-[1.5]" />
+          <span>Đặt lại dữ liệu học tập ban đầu</span>
+        </button>
       </div>
     </div>
   );

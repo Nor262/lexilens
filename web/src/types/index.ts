@@ -31,6 +31,15 @@ export interface Flashcard {
   created_at: string;
 }
 
+export interface ReviewLog {
+  id: string;
+  card_id: string;
+  user_id?: string;
+  rating: FSRSRating;
+  duration_ms: number;
+  reviewed_at: string;
+}
+
 export interface UserProfile {
   id: string;
   email?: string;

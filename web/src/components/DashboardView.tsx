@@ -145,31 +145,37 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </h3>
         </div>
         <div className="space-y-2">
-          {cards.slice(0, 3).map((card) => (
-            <div
-              key={card.id}
-              className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3 rounded-lg bg-surface border border-outline-hairline"
-            >
-              <div className="min-w-0 w-full sm:w-auto flex-1">
-                <div className="flex items-baseline gap-2">
-                  <span className="font-serif font-semibold text-sm text-on-surface">
-                    {card.headword}
-                  </span>
-                  {card.pos && (
-                    <span className="font-mono text-[10px] text-on-surface-muted px-1.5 py-0.2 rounded bg-surface-container">
-                      {card.pos}
+          {cards.length === 0 ? (
+            <p className="text-xs text-on-surface-muted italic py-3 text-center">
+              Chưa có từ vựng nào. Hãy bấm "Xem kho từ đã lưu" hoặc chuyển sang tab Từ vựng để thêm!
+            </p>
+          ) : (
+            cards.slice(0, 3).map((card) => (
+              <div
+                key={card.id}
+                className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3 rounded-lg bg-surface border border-outline-hairline"
+              >
+                <div className="min-w-0 w-full sm:w-auto flex-1">
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-serif font-semibold text-sm text-on-surface">
+                      {card.headword}
                     </span>
-                  )}
+                    {card.pos && (
+                      <span className="font-mono text-[10px] text-on-surface-muted px-1.5 py-0.2 rounded bg-surface-container">
+                        {card.pos}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-on-surface-muted line-clamp-2 sm:truncate mt-0.5">
+                    "{card.sentence}"
+                  </p>
                 </div>
-                <p className="text-xs text-on-surface-muted line-clamp-2 sm:truncate mt-0.5">
-                  "{card.sentence}"
-                </p>
+                <span className="text-[11px] font-sans text-primary bg-primary-tint/20 px-2 py-0.5 rounded border border-primary/20 shrink-0 self-start sm:self-center">
+                  {card.meaning_vi}
+                </span>
               </div>
-              <span className="text-[11px] font-sans text-primary bg-primary-tint/20 px-2 py-0.5 rounded border border-primary/20 shrink-0 self-start sm:self-center">
-                {card.meaning_vi}
-              </span>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
     </div>

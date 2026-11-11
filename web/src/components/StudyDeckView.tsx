@@ -13,7 +13,7 @@ import { reviewCard } from '../services/fsrs';
 
 interface StudyDeckViewProps {
   cards: Flashcard[];
-  onUpdateCard: (card: Flashcard) => void;
+  onUpdateCard: (card: Flashcard, rating: FSRSRating) => void;
   onFinish: () => void;
 }
 
@@ -38,7 +38,7 @@ export const StudyDeckView: React.FC<StudyDeckViewProps> = ({
     if (!currentCard) return;
 
     const updated = reviewCard(currentCard, rating);
-    onUpdateCard(updated);
+    onUpdateCard(updated, rating);
 
     if (currentIndex + 1 < reviewDeck.length) {
       setCurrentIndex((prev) => prev + 1);
