@@ -29,3 +29,4 @@ yarn-error.log*
 .system_generated/
 .DS_Store
 Thumbs.db
+.vercel
