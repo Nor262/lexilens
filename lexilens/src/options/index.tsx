@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { UserSettings } from '../types';
 import { CheckIcon, AlertCircleIcon, ExternalLinkIcon } from '../components/Icons';
+import { fetchAvailableModels, pickBestModel, AvailableModel } from '../services/gemini';
 import '../styles/global.css';
 
 const OptionsApp: React.FC = () => {
   const [settings, setSettings] = useState<UserSettings>({
     geminiApiKey: '',
-    preferredModel: 'gemini-1.5-flash',
+    preferredModel: 'gemini-2.5-flash',
     defaultTopic: 'auto',
     dailyReminderHour: 20,
     customTopics: [],
@@ -17,6 +18,14 @@ const OptionsApp: React.FC = () => {
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [testStatus, setTestStatus] = useState<string | null>(null);
   const [testing, setTesting] = useState<boolean>(false);
+  const [modelOptions, setModelOptions] = useState<string[]>([
+    'gemini-2.5-flash',
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-latest',
+    'gemini-1.5-flash-8b',
+    'gemini-2.5-pro',
+    'gemini-1.5-pro',
+  ]);
 
   useEffect(() => {
     chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (res) => {
@@ -26,8 +35,8 @@ const OptionsApp: React.FC = () => {
     });
   }, []);
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSave = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setSaving(true);
     setSaveSuccess(false);
 
@@ -53,54 +62,80 @@ const OptionsApp: React.FC = () => {
       return;
     }
     setTesting(true);
-    setTestStatus('Đang kiểm tra kết nối với Google Gemini...');
+    setTestStatus('Đang truy vấn danh sách model khả dụng từ Google Generative AI (ModelService.ListModels)...');
 
     try {
       const startTime = performance.now();
-      let targetModel = settings.preferredModel || 'gemini-1.5-flash';
-      if (targetModel === 'gemini-2.0-flash') {
-        targetModel = 'gemini-1.5-flash';
+      const apiKey = settings.geminiApiKey.trim();
+
+      // 1. Dynamic discovery via ListModels
+      const discovered = await fetchAvailableModels(apiKey);
+      let chosenModel = settings.preferredModel || 'gemini-2.5-flash';
+      let apiVersion = 'v1beta';
+
+      if (discovered.length > 0) {
+        const discoveredNames = discovered.map((d) => d.name);
+        setModelOptions((prev) => Array.from(new Set([...discoveredNames, ...prev])));
+
+        const best = pickBestModel(discovered);
+        if (best) {
+          chosenModel = best.name;
+          apiVersion = best.apiVersion;
+        }
       }
 
-      let res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${settings.geminiApiKey}`,
-        {
+      // 2. Perform test ping generateContent
+      const testPing = async (m: string, v: string) => {
+        const url = `https://generativelanguage.googleapis.com/${v}/models/${m}:generateContent?key=${apiKey}`;
+        return fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            contents: [{ parts: [{ text: 'Ping test. Reply with word OK.' }] }],
+            contents: [{ parts: [{ text: 'Hello, respond with OK.' }] }],
           }),
-        }
-      );
+        });
+      };
 
-      // If 404, fallback to gemini-1.5-flash
-      if (!res.ok && res.status === 404 && targetModel !== 'gemini-1.5-flash') {
-        targetModel = 'gemini-1.5-flash';
-        res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${settings.geminiApiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: 'Ping test. Reply with word OK.' }] }],
-            }),
+      let res = await testPing(chosenModel, apiVersion);
+
+      // If 404, fallback test candidate list
+      if (!res.ok && res.status === 404) {
+        const fallbacks = [
+          { m: 'gemini-2.5-flash', v: 'v1beta' },
+          { m: 'gemini-2.5-flash', v: 'v1' },
+          { m: 'gemini-1.5-flash', v: 'v1' },
+          { m: 'gemini-1.5-flash', v: 'v1beta' },
+          { m: 'gemini-1.5-flash-8b', v: 'v1beta' },
+          { m: 'gemini-1.5-pro', v: 'v1beta' },
+        ];
+
+        for (const fb of fallbacks) {
+          const testRes = await testPing(fb.m, fb.v);
+          if (testRes.ok) {
+            res = testRes;
+            chosenModel = fb.m;
+            break;
           }
-        );
+        }
       }
 
       const elapsed = Math.round(performance.now() - startTime);
 
       if (res.ok) {
-        setTestStatus(`✅ Kết nối thành công với ${targetModel}! Tốc độ phản hồi: ${elapsed}ms.`);
-        if (settings.preferredModel !== targetModel) {
-          setSettings((prev) => ({ ...prev, preferredModel: targetModel }));
-        }
+        const newSettings = { ...settings, preferredModel: chosenModel };
+        setSettings(newSettings);
+        setTestStatus(`✅ Kết nối thành công! Đã tự động kích hoạt model "${chosenModel}" (Phản hồi: ${elapsed}ms). Đã tự động lưu cấu hình!`);
+        // Auto-save setting
+        chrome.runtime.sendMessage({
+          type: 'SAVE_SETTINGS',
+          payload: newSettings,
+        });
       } else {
         const err = await res.text();
         setTestStatus(`❌ Lỗi kết nối (${res.status}): ${err}`);
       }
     } catch (e: any) {
-      setTestStatus(`❌ Lỗi mạng: ${e.message}`);
+      setTestStatus(`❌ Lỗi kiểm tra: ${e.message}`);
     } finally {
       setTesting(false);
     }
@@ -166,20 +201,27 @@ const OptionsApp: React.FC = () => {
 
         {/* Model Selection */}
         <div className="p-5 rounded-lg border border-outline-hairline bg-surface-low space-y-3">
-          <label className="block text-xs font-semibold text-on-surface">
-            Mô hình Gemini ưu tiên
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-semibold text-on-surface">
+              Mô hình Gemini ưu tiên
+            </label>
+            <span className="text-[10px] font-mono text-tertiary">
+              Tự động dò tìm & kích hoạt qua ModelService.ListModels
+            </span>
+          </div>
           <select
             value={settings.preferredModel}
             onChange={(e) => setSettings({ ...settings, preferredModel: e.target.value })}
             className="w-full px-3 py-2 text-xs bg-surface border border-outline-hairline rounded focus:border-primary outline-none font-mono"
           >
-            <option value="gemini-1.5-flash">gemini-1.5-flash (Khuyên dùng - Siêu tốc, ổn định & Free 1.500 lượt/ngày)</option>
-            <option value="gemini-2.5-flash">gemini-2.5-flash (Thế hệ mới nhất từ Google DeepMind)</option>
-            <option value="gemini-1.5-pro">gemini-1.5-pro (Phân tích học thuật chuyên sâu)</option>
+            {modelOptions.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt} {opt.includes('2.5-flash') ? '🌟 (Mới nhất & Khuyên dùng)' : opt.includes('1.5-flash') ? '⚡ (Tốc độ cao)' : ''}
+              </option>
+            ))}
           </select>
           <p className="text-[11px] text-on-surface-variant">
-            Mô hình Gemini 1.5 Flash có tốc độ phản hồi cực nhanh (~0.4s), xử lý tốt văn cảnh học thuật và được miễn phí hoàn toàn không cần thẻ tín dụng.
+            Hệ thống tự động phát hiện danh sách model mà Google AI cấp phép cho tài khoản của bạn. Khi bấm "Kiểm tra Key", LexiLens sẽ tự chọn model tối ưu nhất.
           </p>
         </div>
 

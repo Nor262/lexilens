@@ -1,7 +1,12 @@
 import { WordLookupResult, SentenceAnalysisResult, OCRResult } from '../types';
 
-const DEFAULT_MODEL = 'gemini-1.5-flash';
-const GEMINI_API_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
+const DEFAULT_MODEL = 'gemini-2.5-flash';
+
+export interface AvailableModel {
+  name: string;
+  displayName: string;
+  apiVersion: 'v1beta' | 'v1';
+}
 
 /**
  * Strips markdown code fences from JSON output
@@ -17,16 +22,99 @@ function cleanJsonString(raw: string): string {
 }
 
 /**
- * Call Gemini REST API directly with automatic model fallback
+ * Dynamically queries Google Generative Language ModelService.ListModels
+ * across v1beta and v1 to discover what models this API key has access to.
  */
-async function callGemini(apiKey: string, model: string, contents: any[]): Promise<string> {
-  let targetModel = model || DEFAULT_MODEL;
-  if (targetModel === 'gemini-2.0-flash') {
-    targetModel = 'gemini-1.5-flash';
+export async function fetchAvailableModels(apiKey: string): Promise<AvailableModel[]> {
+  const versions: ('v1beta' | 'v1')[] = ['v1beta', 'v1'];
+  const foundModels: AvailableModel[] = [];
+
+  for (const v of versions) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/${v}/models?key=${apiKey}`);
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (Array.isArray(data?.models)) {
+        for (const m of data.models) {
+          const supported = m.supportedGenerationMethods || [];
+          if (supported.includes('generateContent')) {
+            const rawName = m.name || '';
+            const cleanName = rawName.replace(/^models\//, '');
+            if (!foundModels.some((item) => item.name === cleanName)) {
+              foundModels.push({
+                name: cleanName,
+                displayName: m.displayName || cleanName,
+                apiVersion: v,
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn(`[LexiLens] Failed querying ${v}/models:`, e);
+    }
   }
 
-  const makeRequest = async (m: string) => {
-    const url = `${GEMINI_API_ENDPOINT}/${m}:generateContent?key=${apiKey}`;
+  return foundModels;
+}
+
+/**
+ * Chooses the best model suited for fast & accurate contextual linguistic analysis
+ */
+export function pickBestModel(models: AvailableModel[]): AvailableModel | null {
+  if (!models || models.length === 0) return null;
+
+  const priorityOrder = [
+    /gemini-2\.5-flash/i,
+    /gemini-2\.0-flash/i,
+    /gemini-1\.5-flash-latest/i,
+    /gemini-1\.5-flash/i,
+    /gemini-1\.5-flash-8b/i,
+    /gemini-2\.5-pro/i,
+    /gemini-1\.5-pro/i,
+    /flash/i,
+    /gemini/i,
+  ];
+
+  for (const regex of priorityOrder) {
+    const match = models.find((m) => regex.test(m.name));
+    if (match) return match;
+  }
+
+  return models[0];
+}
+
+/**
+ * Call Gemini REST API directly with dynamic model discovery and auto-fallback
+ */
+async function callGemini(apiKey: string, model: string, contents: any[]): Promise<string> {
+  const candidateModels: { name: string; apiVersion: 'v1beta' | 'v1' }[] = [];
+
+  if (model) {
+    candidateModels.push({ name: model, apiVersion: 'v1beta' });
+    candidateModels.push({ name: model, apiVersion: 'v1' });
+  }
+
+  const fallbackNames = [
+    'gemini-2.5-flash',
+    'gemini-1.5-flash-latest',
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-8b',
+    'gemini-2.5-pro',
+    'gemini-1.5-pro',
+  ];
+
+  for (const fb of fallbackNames) {
+    if (!candidateModels.some((c) => c.name === fb && c.apiVersion === 'v1beta')) {
+      candidateModels.push({ name: fb, apiVersion: 'v1beta' });
+    }
+    if (!candidateModels.some((c) => c.name === fb && c.apiVersion === 'v1')) {
+      candidateModels.push({ name: fb, apiVersion: 'v1' });
+    }
+  }
+
+  const makeRequest = async (m: string, v: string) => {
+    const url = `https://generativelanguage.googleapis.com/${v}/models/${m}:generateContent?key=${apiKey}`;
     return fetch(url, {
       method: 'POST',
       headers: {
@@ -42,29 +130,54 @@ async function callGemini(apiKey: string, model: string, contents: any[]): Promi
     });
   };
 
-  let response = await makeRequest(targetModel);
+  let lastErrorText = '';
 
-  // If primary model returns 404, fallback to gemini-1.5-flash
-  if (!response.ok && response.status === 404 && targetModel !== 'gemini-1.5-flash') {
-    console.warn(`[LexiLens] Model ${targetModel} not found, retrying with gemini-1.5-flash...`);
-    const fallbackResponse = await makeRequest('gemini-1.5-flash');
-    if (fallbackResponse.ok) {
-      response = fallbackResponse;
+  // 1. Try static candidates in order
+  for (const candidate of candidateModels) {
+    try {
+      const response = await makeRequest(candidate.name, candidate.apiVersion);
+      if (response.ok) {
+        const data = await response.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) {
+          return cleanJsonString(text);
+        }
+      } else {
+        lastErrorText = await response.text();
+        if (response.status === 400 && lastErrorText.includes('API_KEY_INVALID')) {
+          throw new Error('API Key Gemini không hợp lệ. Vui lòng kiểm tra lại trong phần Cài đặt.');
+        }
+      }
+    } catch (err: any) {
+      if (err.message?.includes('API Key Gemini không hợp lệ')) {
+        throw err;
+      }
     }
   }
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Gemini API Error (${response.status}): ${errorText}`);
+  // 2. Dynamic discovery via Google ModelService.ListModels
+  try {
+    console.info('[LexiLens] Discovering available models via ModelService.ListModels...');
+    const available = await fetchAvailableModels(apiKey);
+    const best = pickBestModel(available);
+    if (best) {
+      console.info(`[LexiLens] Selected discovered model: ${best.name} (${best.apiVersion})`);
+      const response = await makeRequest(best.name, best.apiVersion);
+      if (response.ok) {
+        const data = await response.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) {
+          return cleanJsonString(text);
+        }
+      } else {
+        lastErrorText = await response.text();
+      }
+    }
+  } catch (discoveryErr) {
+    console.warn('[LexiLens] Dynamic model discovery failed:', discoveryErr);
   }
 
-  const data = await response.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) {
-    throw new Error('Gemini returned an empty response.');
-  }
-
-  return cleanJsonString(text);
+  throw new Error(`Gemini API Error: Không thể gọi model khả dụng. Chi tiết: ${lastErrorText}`);
 }
 
 /**
@@ -193,39 +306,19 @@ Chỉ trả về JSON:
 }
 `;
 
-  const targetModel = model || DEFAULT_MODEL;
-  const url = `${GEMINI_API_ENDPOINT}/${targetModel}:generateContent?key=${apiKey}`;
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [
+  const jsonStr = await callGemini(apiKey, model, [
+    {
+      parts: [
+        { text: prompt },
         {
-          parts: [
-            { text: prompt },
-            {
-              inlineData: {
-                mimeType: 'image/png',
-                data: base64Data,
-              },
-            },
-          ],
+          inlineData: {
+            mimeType: 'image/png',
+            data: base64Data,
+          },
         },
       ],
-      generationConfig: {
-        temperature: 0.1,
-        responseMimeType: 'application/json',
-      },
-    }),
-  });
+    },
+  ]);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Gemini OCR Error (${response.status}): ${errorText}`);
-  }
-
-  const data = await response.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  return JSON.parse(cleanJsonString(text));
+  return JSON.parse(jsonStr);
 }

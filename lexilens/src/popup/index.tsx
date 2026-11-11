@@ -41,7 +41,10 @@ const PopupApp: React.FC = () => {
   };
 
   return (
-    <div className="w-[380px] min-w-[380px] p-4 space-y-3.5 font-sans box-border">
+    <div
+      style={{ width: '380px', minWidth: '380px', maxWidth: '380px' }}
+      className="p-4 space-y-3.5 font-sans box-border"
+    >
       <div className="flex items-center justify-between border-b border-outline-hairline pb-2.5">
         <div>
           <h1 className="font-serif text-lg font-bold text-primary">LexiLens</h1>
