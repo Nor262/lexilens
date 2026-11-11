@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Flashcard, ReviewRating, WordLookupResult, SentenceAnalysisResult } from '../types';
 import { isCardDueToday } from '../services/fsrs';
+import { ExtensionAuthView } from '../components/ExtensionAuthView';
 import {
   BookOpenIcon,
   VolumeIcon,
@@ -39,6 +40,8 @@ export const SidepanelApp: React.FC = () => {
   const [cardSaved, setCardSaved] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
+  const [showAuthView, setShowAuthView] = useState<boolean>(false);
+  const [syncingCards, setSyncingCards] = useState<boolean>(false);
 
   const loadCards = async () => {
     try {
@@ -312,37 +315,71 @@ export const SidepanelApp: React.FC = () => {
       {/* Account Sync Pill */}
       <div className="flex items-center justify-between text-[11px] px-3.5 py-1.5 bg-surface-low border-b border-outline-hairline">
         {currentUser ? (
-          <div className="flex items-center gap-1.5 text-on-surface truncate">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-            <span className="truncate font-mono text-[10px]">{currentUser.email}</span>
-            <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1 rounded ml-1">Đã đồng bộ</span>
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-1.5 text-on-surface truncate max-w-[200px]">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+              <span className="truncate font-mono text-[10px]" title={currentUser.email}>
+                {currentUser.email}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => {
+                  setSyncingCards(true);
+                  chrome.runtime.sendMessage({ type: 'MANUAL_SYNC_ALL_CARDS' }, () => {
+                    loadCards();
+                    setSyncingCards(false);
+                  });
+                }}
+                disabled={syncingCards}
+                className="text-[10px] text-primary font-semibold hover:underline cursor-pointer disabled:opacity-50"
+              >
+                {syncingCards ? 'Đang sync...' : 'Đồng bộ'}
+              </button>
+              <button
+                onClick={() => {
+                  chrome.runtime.sendMessage({ type: 'SIGN_OUT' }, () => {
+                    setCurrentUser(null);
+                  });
+                }}
+                className="text-[10px] text-on-surface-muted hover:text-red-600 cursor-pointer"
+              >
+                Đăng xuất
+              </button>
+            </div>
           </div>
         ) : (
           <div className="flex items-center justify-between w-full">
-            <span className="text-on-surface-variant text-[10px]">Chưa đăng nhập Web</span>
+            <span className="text-on-surface-variant text-[10px]">Chưa đăng nhập LexiLens</span>
             <button
-              onClick={() => {
-                chrome.runtime.sendMessage({ type: 'TRY_AUTO_SYNC_AUTH' }, (sRes) => {
-                  if (sRes?.success && sRes.data?.user) {
-                    setCurrentUser(sRes.data.user);
-                  } else {
-                    window.open('https://lexilens-app.vercel.app', '_blank');
-                  }
-                });
-              }}
-              className="text-primary font-semibold text-[10px] hover:underline cursor-pointer"
+              onClick={() => setShowAuthView(true)}
+              className="text-primary font-bold text-[10px] hover:underline cursor-pointer bg-primary-tint/30 px-2 py-0.5 rounded border border-primary/20"
             >
-              Đồng bộ từ Web App
+              Đăng nhập ngay
             </button>
           </div>
         )}
       </div>
 
-      {authNotice && (
+      {showAuthView && (
+        <div className="p-3">
+          <ExtensionAuthView
+            onSuccess={(u) => {
+              setCurrentUser(u);
+              setShowAuthView(false);
+              setAuthNotice(null);
+              loadCards();
+            }}
+            onClose={() => setShowAuthView(false)}
+          />
+        </div>
+      )}
+
+      {authNotice && !showAuthView && (
         <div className="mx-4 mt-3 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between">
           <span className="text-[11px] leading-tight">{authNotice}</span>
           <button
-            onClick={() => window.open('https://lexilens-app.vercel.app', '_blank')}
+            onClick={() => setShowAuthView(true)}
             className="text-primary font-bold underline shrink-0 ml-2 text-xs cursor-pointer"
           >
             Đăng nhập

@@ -105,6 +105,7 @@ export interface ExtensionMessage {
     | 'SIGN_OUT'
     | 'TRY_AUTO_SYNC_AUTH'
     | 'SYNC_SESSION_FROM_PAGE'
+    | 'MANUAL_SYNC_ALL_CARDS'
     | 'SYNC_CARDS_FROM_CLOUD';
   payload?: any;
 }

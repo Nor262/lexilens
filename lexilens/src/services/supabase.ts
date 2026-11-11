@@ -46,28 +46,99 @@ export interface AuthUserState {
 export async function getExtensionUser(): Promise<any | null> {
   try {
     const { data } = await supabase.auth.getSession();
-    return data.session?.user ?? null;
+    if (data.session?.user) return data.session.user;
+
+    // Check saved session in local storage
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      const stored = await chrome.storage.local.get(['lexilens_saved_user', 'lexilens_session']);
+      if (stored.lexilens_session?.access_token) {
+        const { data: refreshed } = await supabase.auth.setSession({
+          access_token: stored.lexilens_session.access_token,
+          refresh_token: stored.lexilens_session.refresh_token,
+        });
+        if (refreshed?.user) return refreshed.user;
+      }
+      if (stored.lexilens_saved_user) return stored.lexilens_saved_user;
+    }
   } catch {
-    return null;
+    // fallback
   }
+  return null;
 }
 
 export async function signInExtension(email: string, pass: string) {
-  return await supabase.auth.signInWithPassword({
-    email: email.trim(),
-    password: pass,
-  });
+  try {
+    const res = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password: pass,
+    });
+    if (res.data?.session?.user) {
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        await chrome.storage.local.set({
+          lexilens_saved_user: res.data.session.user,
+          lexilens_session: {
+            access_token: res.data.session.access_token,
+            refresh_token: res.data.session.refresh_token,
+          },
+        });
+      }
+      // Auto-upload any offline cards saved on this machine
+      await syncAllLocalCardsToCloud(res.data.session.user.id);
+    }
+    return res;
+  } catch (err: any) {
+    return { data: { user: null, session: null }, error: err };
+  }
 }
 
 export async function signUpExtension(email: string, pass: string) {
-  return await supabase.auth.signUp({
-    email: email.trim(),
-    password: pass,
-  });
+  try {
+    const res = await supabase.auth.signUp({
+      email: email.trim(),
+      password: pass,
+    });
+    if (res.data?.session?.user) {
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        await chrome.storage.local.set({
+          lexilens_saved_user: res.data.session.user,
+          lexilens_session: {
+            access_token: res.data.session.access_token,
+            refresh_token: res.data.session.refresh_token,
+          },
+        });
+      }
+      await syncAllLocalCardsToCloud(res.data.session.user.id);
+    }
+    return res;
+  } catch (err: any) {
+    return { data: { user: null, session: null }, error: err };
+  }
 }
 
 export async function signOutExtension() {
+  if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+    await chrome.storage.local.remove(['lexilens_saved_user', 'lexilens_session']);
+  }
   return await supabase.auth.signOut();
+}
+
+export async function syncAllLocalCardsToCloud(userId: string): Promise<number> {
+  if (!userId || typeof chrome === 'undefined' || !chrome.storage?.local) return 0;
+  try {
+    const res = await chrome.storage.local.get(['cards']);
+    const localCards = Array.isArray(res.cards) ? res.cards : [];
+    if (localCards.length === 0) return 0;
+
+    let syncedCount = 0;
+    for (const card of localCards) {
+      const ok = await syncCardToCloud(card, userId);
+      if (ok) syncedCount++;
+    }
+    return syncedCount;
+  } catch (err) {
+    console.warn('[LexiLens] syncAllLocalCardsToCloud error:', err);
+    return 0;
+  }
 }
 
 export async function setSessionFromTokenData(tokenData: { access_token: string; refresh_token: string }): Promise<any | null> {
@@ -77,6 +148,16 @@ export async function setSessionFromTokenData(tokenData: { access_token: string;
       refresh_token: tokenData.refresh_token,
     });
     if (!error && data?.user) {
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        await chrome.storage.local.set({
+          lexilens_saved_user: data.user,
+          lexilens_session: {
+            access_token: tokenData.access_token,
+            refresh_token: tokenData.refresh_token,
+          },
+        });
+      }
+      await syncAllLocalCardsToCloud(data.user.id);
       console.log('[LexiLens] Session successfully synced from Web App:', data.user.email);
       return data.user;
     }

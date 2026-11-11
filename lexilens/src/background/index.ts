@@ -11,6 +11,7 @@ import {
   setSessionFromTokenData,
   syncCardToCloud,
   fetchCardsFromCloud,
+  syncAllLocalCardsToCloud,
 } from '../services/supabase';
 import {
   getSettings,
@@ -365,21 +366,12 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
           break;
         }
 
-        // ================= SAVE FLASHCARD (ENFORCE AUTH & SYNC TO CLOUD) =================
+        // ================= SAVE FLASHCARD (SUPPORT OFFLINE & AUTO-SYNC CLOUD) =================
         case 'SAVE_FLASHCARD': {
           const rawCard = message.payload;
           let user = await getExtensionUser();
           if (!user) {
             user = await tryAutoSyncFromWebTab();
-          }
-
-          if (!user) {
-            sendResponse({
-              success: false,
-              requireAuth: true,
-              error: 'Vui lòng đăng nhập tài khoản LexiLens để lưu từ vựng và đồng bộ sang Web App!',
-            });
-            return;
           }
 
           const isUUID = (str?: string) =>
@@ -389,7 +381,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
 
           const newCard: Flashcard = {
             id: cardId,
-            user_id: user.id,
+            user_id: user?.id || 'local_user',
             headword: rawCard.headword,
             pos: rawCard.pos || 'word',
             ipa: rawCard.ipa || '',
@@ -409,16 +401,42 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
             fsrs: createNewFsrsState(),
           };
 
-          // 1. Save to local storage for instant offline access
+          // 1. Always save to local storage immediately
           const saveResult = await saveFlashcard(newCard);
 
-          // 2. Sync to Supabase cloud database
-          const cloudSynced = await syncCardToCloud(newCard, user.id);
+          // 2. If logged in, sync to Supabase cloud database
+          let cloudSynced = false;
+          if (user?.id) {
+            cloudSynced = await syncCardToCloud(newCard, user.id);
+          }
 
           sendResponse({
             success: true,
+            isLoggedIn: !!user?.id,
             syncedToCloud: cloudSynced,
             data: saveResult,
+          });
+          break;
+        }
+
+        case 'MANUAL_SYNC_ALL_CARDS': {
+          let user = await getExtensionUser();
+          if (!user) {
+            user = await tryAutoSyncFromWebTab();
+          }
+
+          if (!user?.id) {
+            sendResponse({ success: false, error: 'Chưa đăng nhập tài khoản.' });
+            return;
+          }
+
+          const uploadedCount = await syncAllLocalCardsToCloud(user.id);
+          const cloudCards = await fetchCardsFromCloud(user.id);
+
+          sendResponse({
+            success: true,
+            uploadedCount,
+            totalCloudCards: cloudCards.length,
           });
           break;
         }

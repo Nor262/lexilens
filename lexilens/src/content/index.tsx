@@ -302,29 +302,41 @@ const ContentApp: React.FC = () => {
   );
 };
 
-// Initialize Shadow DOM Container with fixed full-screen overlay
+// Initialize Shadow DOM Container with zero-size fixed anchor
 function initLexiLens() {
   if (document.getElementById('lexilens-host')) return;
 
+  const targetParent = document.body || document.documentElement;
+  if (!targetParent) return;
+
   const host = document.createElement('div');
   host.id = 'lexilens-host';
-  host.style.position = 'fixed';
-  host.style.top = '0';
-  host.style.left = '0';
-  host.style.width = '100vw';
-  host.style.height = '100vh';
-  host.style.overflow = 'visible';
-  host.style.zIndex = '2147483647';
-  host.style.pointerEvents = 'none';
-  (document.documentElement || document.body).appendChild(host);
+  host.style.setProperty('position', 'fixed', 'important');
+  host.style.setProperty('top', '0', 'important');
+  host.style.setProperty('left', '0', 'important');
+  host.style.setProperty('width', '0', 'important');
+  host.style.setProperty('height', '0', 'important');
+  host.style.setProperty('overflow', 'visible', 'important');
+  host.style.setProperty('z-index', '2147483647', 'important');
+  host.style.setProperty('pointer-events', 'none', 'important');
+  host.style.setProperty('border', 'none', 'important');
+  host.style.setProperty('margin', '0', 'important');
+  host.style.setProperty('padding', '0', 'important');
+  targetParent.appendChild(host);
 
   const shadowRoot = host.attachShadow({ mode: 'open' });
   const mountPoint = document.createElement('div');
   mountPoint.id = 'lexilens-root';
-  mountPoint.style.pointerEvents = 'none';
+  mountPoint.style.setProperty('position', 'fixed', 'important');
+  mountPoint.style.setProperty('top', '0', 'important');
+  mountPoint.style.setProperty('left', '0', 'important');
+  mountPoint.style.setProperty('width', '0', 'important');
+  mountPoint.style.setProperty('height', '0', 'important');
+  mountPoint.style.setProperty('overflow', 'visible', 'important');
+  mountPoint.style.setProperty('pointer-events', 'none', 'important');
   shadowRoot.appendChild(mountPoint);
 
-  // 1. Inlined Styles (Guaranteed to work without CSP chrome-extension blocking)
+  // 1. Inlined Styles scoped 100% inside Shadow DOM
   try {
     const styleEl = document.createElement('style');
     styleEl.textContent = contentStyles;
