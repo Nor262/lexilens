@@ -150,14 +150,18 @@ export const LexiLensPopup: React.FC<LexiLensPopupProps> = ({
 
   return (
     <div
+      id="lexilens-popup"
+      data-lexilens="true"
       style={{
         position: 'fixed',
         left: `${left}px`,
         top: `${top}px`,
         width: `${popupWidth}px`,
         zIndex: 2147483647,
+        pointerEvents: 'auto',
       }}
       className="bg-surface border border-outline-hairline rounded-lg shadow-academic font-sans text-on-surface text-sm overflow-hidden animate-fadeIn"
+      onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
       {/* 1. Header: Topic Chips & Close */}

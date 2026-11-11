@@ -4,7 +4,7 @@ import { FloatingTrigger } from '../components/FloatingTrigger';
 import { LexiLensPopup } from '../components/LexiLensPopup';
 import { ScreenCropOverlay } from '../components/ScreenCropOverlay';
 import { OCRResult } from '../types';
-import '../styles/content.css';
+import contentStyles from '../styles/content.css?inline';
 
 interface TriggerState {
   visible: boolean;
@@ -62,50 +62,86 @@ const ContentApp: React.FC = () => {
   };
 
   useEffect(() => {
+    // Helper to check if event was inside LexiLens UI
+    const isLexiLensTarget = (target: any, path: any[]): boolean => {
+      try {
+        if (target?.closest?.('#lexilens-host') || target?.closest?.('[data-lexilens]')) {
+          return true;
+        }
+        return path.some((el: any) => {
+          return (
+            el?.id === 'lexilens-host' ||
+            el?.id === 'lexilens-root' ||
+            el?.id === 'lexilens-floating-trigger' ||
+            el?.id === 'lexilens-popup' ||
+            el?.getAttribute?.('data-lexilens') === 'true'
+          );
+        });
+      } catch {
+        return false;
+      }
+    };
+
     const handleMouseUp = (e: MouseEvent) => {
       const path = e.composedPath ? e.composedPath() : [];
-      const isInside = path.some((el: any) => el?.id === 'lexilens-host' || el?.id === 'lexilens-root');
-      if (isInside) return;
-
-      const sel = window.getSelection();
-      const text = sel ? sel.toString().trim() : '';
-
-      if (!text || text.length < 2 || text.length > 500) {
-        setTrigger((prev) => ({ ...prev, visible: false }));
+      if (isLexiLensTarget(e.target, path)) {
         return;
       }
 
-      const range = sel?.getRangeAt(0);
-      if (!range) return;
+      // Small delay so browser completes selection bounding rect calculations
+      setTimeout(() => {
+        const sel = window.getSelection();
+        const text = sel ? sel.toString().trim() : '';
 
-      const rect = range.getBoundingClientRect();
-      if (rect.width === 0 && rect.height === 0) return;
+        // Ignore if empty, less than 2 chars, longer than 600 chars, or purely non-letter
+        if (!text || text.length < 2 || text.length > 600 || !/[a-zA-Z]/.test(text)) {
+          setTrigger((prev) => ({ ...prev, visible: false }));
+          return;
+        }
 
-      const sentence = extractSurroundingSentence(sel!);
+        if (sel && sel.rangeCount > 0) {
+          const range = sel.getRangeAt(0);
+          const rect = range.getBoundingClientRect();
+          if (rect.width === 0 && rect.height === 0) return;
 
-      // Calculate fixed viewport position so it doesn't jump or go offscreen
-      const clampedX = Math.max(10, Math.min(window.innerWidth - 140, rect.left));
-      const clampedY = rect.top >= 44 ? rect.top - 38 : rect.bottom + 8;
+          const sentence = extractSurroundingSentence(sel);
 
-      setTrigger({
-        visible: true,
-        x: clampedX,
-        y: clampedY,
-        selection: text,
-        sentence,
-      });
+          // Clamped viewport positioning
+          const clampedX = Math.max(10, Math.min(window.innerWidth - 180, rect.left));
+          const clampedY = rect.top >= 44 ? rect.top - 38 : rect.bottom + 8;
+
+          setTrigger({
+            visible: true,
+            x: clampedX,
+            y: clampedY,
+            selection: text,
+            sentence,
+          });
+        }
+      }, 30);
     };
 
     const handleMouseDown = (e: MouseEvent) => {
       const path = e.composedPath ? e.composedPath() : [];
-      const isInside = path.some((el: any) => el?.id === 'lexilens-host' || el?.id === 'lexilens-root');
-      if (isInside) return;
-      // Hide trigger if clicking elsewhere
+      if (isLexiLensTarget(e.target, path)) {
+        return;
+      }
+      // Hide trigger when clicking outside
       setTrigger((prev) => ({ ...prev, visible: false }));
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setTrigger((prev) => ({ ...prev, visible: false }));
+        setPopup((prev) => ({ ...prev, visible: false }));
+        setShowCrop(false);
+        setOcrData(null);
+      }
     };
 
     window.addEventListener('mouseup', handleMouseUp);
     window.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('keydown', handleKeyDown);
 
     // Listen to background messages (e.g. keyboard shortcuts)
     const messageListener = (msg: any) => {
@@ -118,6 +154,7 @@ const ContentApp: React.FC = () => {
     return () => {
       window.removeEventListener('mouseup', handleMouseUp);
       window.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('keydown', handleKeyDown);
       chrome.runtime.onMessage.removeListener(messageListener);
     };
   }, []);
@@ -171,6 +208,7 @@ const ContentApp: React.FC = () => {
         <FloatingTrigger
           x={trigger.x}
           y={trigger.y}
+          text={trigger.selection}
           onClick={openPopupFromTrigger}
         />
       )}
@@ -198,15 +236,19 @@ const ContentApp: React.FC = () => {
 
       {/* 4. OCR Result Modal */}
       {ocrData && (
-        <div className="fixed inset-0 z-[2147483647] flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-surface rounded-lg border border-outline-hairline shadow-academic max-w-lg w-full p-4 font-sans text-on-surface space-y-3">
+        <div 
+          data-lexilens="true" 
+          style={{ pointerEvents: 'auto' }}
+          className="fixed inset-0 z-[2147483647] flex items-center justify-center bg-black/50 p-4 font-sans"
+        >
+          <div className="bg-surface rounded-lg border border-outline-hairline shadow-academic max-w-lg w-full p-4 text-on-surface space-y-3">
             <div className="flex items-center justify-between border-b border-outline-hairline pb-2">
               <h3 className="font-serif text-lg font-bold text-primary">
                 Nhận diện văn bản (LexiLens Lens)
               </h3>
               <button
                 onClick={() => setOcrData(null)}
-                className="p-1 rounded hover:bg-surface-container text-on-surface-variant hover:text-on-surface"
+                className="p-1 rounded hover:bg-surface-container text-on-surface-variant hover:text-on-surface cursor-pointer"
               >
                 ✕
               </button>
@@ -223,8 +265,8 @@ const ContentApp: React.FC = () => {
                   onClick={() => {
                     setPopup({
                       visible: true,
-                      x: window.innerWidth / 2 - 195,
-                      y: window.innerHeight / 2 - 150,
+                      x: Math.max(10, window.innerWidth / 2 - 195),
+                      y: Math.max(10, window.innerHeight / 2 - 150),
                       selection: s.sentence,
                       sentence: s.sentence,
                     });
@@ -267,14 +309,27 @@ function initLexiLens() {
   const shadowRoot = host.attachShadow({ mode: 'open' });
   const mountPoint = document.createElement('div');
   mountPoint.id = 'lexilens-root';
-  mountPoint.style.pointerEvents = 'auto';
+  mountPoint.style.pointerEvents = 'none';
   shadowRoot.appendChild(mountPoint);
 
-  // Inject styles into Shadow DOM
-  const styleEl = document.createElement('link');
-  styleEl.rel = 'stylesheet';
-  styleEl.href = chrome.runtime.getURL('content.css');
-  shadowRoot.appendChild(styleEl);
+  // 1. Inlined Styles (Guaranteed to work without CSP chrome-extension blocking)
+  try {
+    const styleEl = document.createElement('style');
+    styleEl.textContent = contentStyles;
+    shadowRoot.appendChild(styleEl);
+  } catch (err) {
+    console.warn('[LexiLens] Could not inline style tag:', err);
+  }
+
+  // 2. Link stylesheet fallback
+  try {
+    const linkEl = document.createElement('link');
+    linkEl.rel = 'stylesheet';
+    linkEl.href = chrome.runtime.getURL('content.css');
+    shadowRoot.appendChild(linkEl);
+  } catch (err) {
+    console.warn('[LexiLens] Could not attach link tag:', err);
+  }
 
   const root = createRoot(mountPoint);
   root.render(<ContentApp />);
