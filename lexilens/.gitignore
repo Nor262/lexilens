@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+bun.lockb
+
+# Build outputs
+dist/
+
+# Environment and sensitive keys
+.env
+.env.*
+!.env.example
+
+# Confidential internal documents
+PROJECT_BRIEF.md
+AGENT_HANDOFF.md
+
+# OS files
+.DS_Store
+Thumbs.db
