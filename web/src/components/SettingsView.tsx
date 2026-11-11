@@ -118,59 +118,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </p>
       </div>
 
-      {/* Extension Sync Bridge Card */}
-      <div className="p-4 sm:p-5 rounded-xl bg-surface-lowest border border-primary/20 shadow-academic space-y-3.5">
-        <div className="flex items-start gap-3">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600 shrink-0">
-            <CheckCircle className="w-5 h-5 stroke-[1.8]" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h3 className="font-serif font-bold text-sm sm:text-base text-on-surface">
-                Tự động Đồng bộ Đám mây 2 Chiều
-              </h3>
-              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 border border-emerald-500/30">
-                Tự động
-              </span>
+      {/* Tài khoản & Trạng thái đồng bộ */}
+      <div className="p-4 sm:p-5 rounded-xl bg-surface-lowest border border-outline-hairline shadow-academic space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-primary-tint/30 flex items-center justify-center text-primary shrink-0">
+              <Shield className="w-5 h-5 stroke-[1.8]" />
             </div>
-            <p className="text-xs text-on-surface-muted font-sans mt-1 leading-relaxed">
-              Mọi từ vựng bạn tra và lưu từ Chrome Extension sẽ tự động xuất hiện ngay trên Web App này thông qua tài khoản Supabase Cloud chung. Bạn không cần phải bấm nút đồng bộ thủ công.
-            </p>
-          </div>
-        </div>
-
-        <div className="p-3 rounded-lg bg-surface-container border border-outline-hairline/80 flex items-center justify-between text-xs font-sans text-on-surface-muted">
-          <span className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            Tài khoản đồng bộ: <strong className="text-on-surface font-mono">{profile.email || 'Chưa đăng nhập'}</strong>
-          </span>
-          <span className="text-[11px] text-emerald-600 font-medium">Đám mây kết nối sẵn sàng</span>
-        </div>
-      </div>
-
-      {/* Supabase Cloud Connection & Account */}
-      <div className="p-4 sm:p-5 rounded-xl bg-surface-container border border-outline-hairline space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <Shield className="w-5 h-5 text-tertiary stroke-[1.5] shrink-0" />
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h4 className="font-serif font-bold text-sm text-on-surface">
-                  Cơ sở Dữ liệu Cloud (Supabase)
+                <h4 className="font-serif font-bold text-sm sm:text-base text-on-surface">
+                  {profile.display_name || 'Học viên'}
                 </h4>
-                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Connected" />
+                {profile.email && (
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    Đã đồng bộ
+                  </span>
+                )}
               </div>
-              <span className="text-[11px] text-on-surface-muted block truncate max-w-[220px] sm:max-w-none">
-                {profile.email ? profile.email : 'Chế độ Khách (Offline-First tự động lưu)'}
-              </span>
+              <p className="text-xs text-on-surface-muted font-mono truncate mt-0.5">
+                {profile.email || 'Chế độ khách (Chưa đăng nhập)'}
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-center">
+          <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
             {profile.email ? (
               <button
                 onClick={handleLogout}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-surface hover:bg-surface-high border border-outline-hairline text-xs font-sans text-red-600 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-surface hover:bg-surface-high border border-outline-hairline text-xs font-sans text-red-600 transition-colors cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5 stroke-[1.5]" />
                 <span>Đăng xuất</span>
@@ -178,10 +154,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             ) : (
               <button
                 onClick={() => setShowAuthModal(true)}
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary text-white text-xs font-sans font-medium transition-colors shadow-sm"
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary text-white text-xs font-sans font-medium transition-colors shadow-sm cursor-pointer"
               >
                 <LogIn className="w-3.5 h-3.5 stroke-[1.5]" />
-                <span>Đăng nhập / Đăng ký</span>
+                <span>Đăng nhập</span>
               </button>
             )}
           </div>

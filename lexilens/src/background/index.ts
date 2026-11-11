@@ -9,6 +9,7 @@ import {
   signOutExtension,
   tryAutoSyncFromWebTab,
   setSessionFromTokenData,
+  syncSessionFromCookie,
   syncCardToCloud,
   fetchCardsFromCloud,
   syncAllLocalCardsToCloud,
@@ -38,6 +39,25 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 // Update badge on extension launch
 updateExtensionBadge();
+
+// Proactively sync user from shared cookie on background launch
+syncSessionFromCookie();
+
+// Watch cookie changes in real-time: When Web logs in or out, Extension reflects it instantly without doing anything!
+if (typeof chrome !== 'undefined' && chrome.cookies?.onChanged) {
+  chrome.cookies.onChanged.addListener((changeInfo) => {
+    if (changeInfo.cookie?.name === 'lexilens_auth') {
+      if (changeInfo.removed) {
+        signOutExtension();
+      } else if (changeInfo.cookie?.value) {
+        try {
+          const tokenData = JSON.parse(decodeURIComponent(changeInfo.cookie.value));
+          setSessionFromTokenData(tokenData);
+        } catch {}
+      }
+    }
+  });
+}
 
 // Helper to trigger crop on a tab, auto-injecting content script if missing
 async function triggerCropOnTab(tabId: number, url?: string) {

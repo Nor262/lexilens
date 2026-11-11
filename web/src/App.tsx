@@ -37,7 +37,25 @@ export const App: React.FC = () => {
 
   // Check user session on startup
   useEffect(() => {
+    const syncAuthCookie = (session: any) => {
+      try {
+        if (session?.user && session?.access_token) {
+          const authData = JSON.stringify({
+            access_token: session.access_token,
+            refresh_token: session.refresh_token,
+            user: session.user,
+          });
+          document.cookie = `lexilens_auth=${encodeURIComponent(authData)}; path=/; max-age=2592000; SameSite=Lax`;
+        } else {
+          document.cookie = `lexilens_auth=; path=/; max-age=0; SameSite=Lax`;
+        }
+      } catch (e) {
+        console.warn('Cookie sync error:', e);
+      }
+    };
+
     const broadcastAuth = (session: any) => {
+      syncAuthCookie(session);
       if (session?.user && session?.access_token) {
         window.postMessage(
           {
@@ -53,23 +71,40 @@ export const App: React.FC = () => {
       }
     };
 
-    // Check if session exists in Supabase, OR sync from Extension if user logged into Extension first
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setSessionUser(session.user);
+    // Check if session exists in Supabase or Cookie, OR sync from Extension
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      let activeSession = session;
+
+      if (!activeSession) {
+        try {
+          const match = document.cookie.match(/(?:^|;\s*)lexilens_auth=([^;]+)/);
+          if (match) {
+            const parsed = JSON.parse(decodeURIComponent(match[1]));
+            if (parsed?.access_token && parsed?.refresh_token) {
+              const { data } = await supabase.auth.setSession({
+                access_token: parsed.access_token,
+                refresh_token: parsed.refresh_token,
+              });
+              if (data?.session) activeSession = data.session;
+            }
+          }
+        } catch {}
+      }
+
+      if (activeSession?.user) {
+        setSessionUser(activeSession.user);
         setProfile((prev) => ({
           ...prev,
-          id: session.user.id,
-          email: session.user.email,
-          display_name: session.user.user_metadata?.full_name || 'Học viên',
+          id: activeSession.user.id,
+          email: activeSession.user.email,
+          display_name: activeSession.user.user_metadata?.full_name || 'Học viên',
         }));
-        loadAllData(session.user.id);
-        broadcastAuth(session);
+        loadAllData(activeSession.user.id);
+        broadcastAuth(activeSession);
         setAuthLoading(false);
       } else {
         // Request session from Extension content script bridge
         window.postMessage({ type: 'LEXILENS_REQUEST_EXTENSION_SESSION' }, '*');
-        // Allow 300ms for extension bridge to reply before turning off loading
         setTimeout(() => {
           setAuthLoading(false);
         }, 350);

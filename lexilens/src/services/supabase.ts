@@ -48,7 +48,7 @@ export async function getExtensionUser(): Promise<any | null> {
     const { data } = await supabase.auth.getSession();
     if (data.session?.user) return data.session.user;
 
-    // Check saved session in local storage
+    // 1. Check saved session in local storage
     if (typeof chrome !== 'undefined' && chrome.storage?.local) {
       const stored = await chrome.storage.local.get(['lexilens_saved_user', 'lexilens_session']);
       if (stored.lexilens_session?.access_token) {
@@ -60,8 +60,41 @@ export async function getExtensionUser(): Promise<any | null> {
       }
       if (stored.lexilens_saved_user) return stored.lexilens_saved_user;
     }
+
+    // 2. Check shared Cookie from Web App
+    const cookieUser = await syncSessionFromCookie();
+    if (cookieUser) return cookieUser;
+
+    // 3. Check open Web tabs
+    return await tryAutoSyncFromWebTab();
   } catch {
     // fallback
+  }
+  return null;
+}
+
+export async function syncSessionFromCookie(): Promise<any | null> {
+  if (typeof chrome === 'undefined' || !chrome.cookies) return null;
+
+  const cookieUrls = [
+    'https://lexilens-app.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:5173',
+  ];
+
+  for (const url of cookieUrls) {
+    try {
+      const cookie = await chrome.cookies.get({ url, name: 'lexilens_auth' });
+      if (cookie?.value) {
+        const tokenData = JSON.parse(decodeURIComponent(cookie.value));
+        if (tokenData?.access_token || tokenData?.user) {
+          const user = await setSessionFromTokenData(tokenData);
+          if (user) return user;
+        }
+      }
+    } catch {
+      // continue
+    }
   }
   return null;
 }
@@ -116,8 +149,15 @@ export async function signUpExtension(email: string, pass: string) {
 }
 
 export async function signOutExtension() {
-  if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-    await chrome.storage.local.remove(['lexilens_saved_user', 'lexilens_session']);
+  if (typeof chrome !== 'undefined') {
+    if (chrome.storage?.local) {
+      await chrome.storage.local.remove(['lexilens_saved_user', 'lexilens_session']);
+    }
+    if (chrome.cookies) {
+      chrome.cookies.remove({ url: 'https://lexilens-app.vercel.app', name: 'lexilens_auth' }).catch(() => {});
+      chrome.cookies.remove({ url: 'http://localhost:3000', name: 'lexilens_auth' }).catch(() => {});
+      chrome.cookies.remove({ url: 'http://localhost:5173', name: 'lexilens_auth' }).catch(() => {});
+    }
   }
   return await supabase.auth.signOut();
 }
@@ -170,14 +210,40 @@ export async function setSessionFromTokenData(tokenData: {
 
       const activeUser = (!error && data?.user) ? data.user : rawUser;
       if (activeUser) {
-        if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-          await chrome.storage.local.set({
-            lexilens_saved_user: activeUser,
-            lexilens_session: {
-              access_token: tokenData.access_token,
-              refresh_token: tokenData.refresh_token,
-            },
-          });
+        if (typeof chrome !== 'undefined') {
+          if (chrome.storage?.local) {
+            await chrome.storage.local.set({
+              lexilens_saved_user: activeUser,
+              lexilens_session: {
+                access_token: tokenData.access_token,
+                refresh_token: tokenData.refresh_token,
+              },
+            });
+          }
+          // Also sync to Web App cookies so Web App gets the session automatically
+          if (chrome.cookies) {
+            const cookieVal = encodeURIComponent(
+              JSON.stringify({
+                access_token: tokenData.access_token,
+                refresh_token: tokenData.refresh_token,
+                user: activeUser,
+              })
+            );
+            const cookieUrls = [
+              'https://lexilens-app.vercel.app',
+              'http://localhost:3000',
+              'http://localhost:5173',
+            ];
+            for (const cUrl of cookieUrls) {
+              chrome.cookies.set({
+                url: cUrl,
+                name: 'lexilens_auth',
+                value: cookieVal,
+                path: '/',
+                expirationDate: Math.floor(Date.now() / 1000) + 2592000,
+              }).catch(() => {});
+            }
+          }
         }
         if (activeUser.id) {
           syncAllLocalCardsToCloud(activeUser.id).catch(() => {});
@@ -217,8 +283,21 @@ export async function tryAutoSyncFromWebTab(): Promise<any | null> {
       try {
         const results = await chrome.scripting.executeScript({
           target: { tabId: tab.id },
+          world: 'MAIN',
           func: () => {
             try {
+              // 1. Check shared cookie
+              const cookieMatch = document.cookie.match(/(?:^|;\s*)lexilens_auth=([^;]+)/);
+              if (cookieMatch) {
+                try {
+                  const parsedCookie = JSON.parse(decodeURIComponent(cookieMatch[1]));
+                  if (parsedCookie?.access_token || parsedCookie?.user) {
+                    return parsedCookie;
+                  }
+                } catch {}
+              }
+
+              // 2. Check localStorage
               for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
                 if (key && (key.includes('-auth-token') || key.startsWith('sb-'))) {
