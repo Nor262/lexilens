@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Navigation, TabType } from './components/Navigation';
 import { DashboardView } from './components/DashboardView';
 import { StudyDeckView } from './components/StudyDeckView';
@@ -164,13 +165,19 @@ export const App: React.FC = () => {
     }
   };
 
-  // 1. Loading screen while verifying auth session
+  // 1. Loading screen while verifying auth session with smooth shimmer & pulse
   if (authLoading) {
     return (
       <div className="min-h-screen bg-surface flex flex-col items-center justify-center p-4 select-none">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-3" />
-        <p className="font-serif text-sm font-semibold text-primary">LexiLens</p>
-        <p className="font-sans text-xs text-on-surface-muted mt-1">Đang xác thực phiên học tập...</p>
+        <motion.div
+          animate={{ scale: [1, 1.08, 1], opacity: [0.8, 1, 0.8] }}
+          transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+          className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center text-white shadow-academic mb-3"
+        >
+          <span className="font-serif text-xl font-bold">L</span>
+        </motion.div>
+        <p className="font-serif text-base font-bold text-primary tracking-wide">LexiLens</p>
+        <p className="font-sans text-xs text-on-surface-muted mt-1">Đang đồng bộ phiên học thuật...</p>
       </div>
     );
   }
@@ -193,43 +200,54 @@ export const App: React.FC = () => {
       />
 
       <main className="flex-1 max-w-5xl w-full mx-auto px-3.5 sm:px-6 md:px-8 pt-3.5 sm:pt-6 pb-24 md:pb-12">
-        {activeTab === 'dashboard' && (
-          <DashboardView
-            cards={cards}
-            profile={profile}
-            onStartStudy={() => setActiveTab('study')}
-            onOpenLibrary={() => setActiveTab('library')}
-            onOpenInstallModal={() => setIsInstallModalOpen(true)}
-          />
-        )}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            className="w-full"
+          >
+            {activeTab === 'dashboard' && (
+              <DashboardView
+                cards={cards}
+                profile={profile}
+                onStartStudy={() => setActiveTab('study')}
+                onOpenLibrary={() => setActiveTab('library')}
+                onOpenInstallModal={() => setIsInstallModalOpen(true)}
+              />
+            )}
 
-        {activeTab === 'study' && (
-          <StudyDeckView
-            cards={cards}
-            onUpdateCard={handleUpdateCard}
-            onFinish={() => setActiveTab('dashboard')}
-          />
-        )}
+            {activeTab === 'study' && (
+              <StudyDeckView
+                cards={cards}
+                onUpdateCard={handleUpdateCard}
+                onFinish={() => setActiveTab('dashboard')}
+              />
+            )}
 
-        {activeTab === 'library' && (
-          <LibraryView
-            cards={cards}
-            onAddCard={handleAddCard}
-            onDeleteCard={handleDeleteCard}
-          />
-        )}
+            {activeTab === 'library' && (
+              <LibraryView
+                cards={cards}
+                onAddCard={handleAddCard}
+                onDeleteCard={handleDeleteCard}
+              />
+            )}
 
-        {activeTab === 'stats' && (
-          <StatsView cards={cards} reviews={reviews} profile={profile} />
-        )}
+            {activeTab === 'stats' && (
+              <StatsView cards={cards} reviews={reviews} profile={profile} />
+            )}
 
-        {activeTab === 'settings' && (
-          <SettingsView
-            profile={profile}
-            onUpdateTarget={handleUpdateTarget}
-            onResetData={handleResetData}
-          />
-        )}
+            {activeTab === 'settings' && (
+              <SettingsView
+                profile={profile}
+                onUpdateTarget={handleUpdateTarget}
+                onResetData={handleResetData}
+              />
+            )}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       {/* Floating Action Bubble at bottom-right corner */}

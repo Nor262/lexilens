@@ -1,5 +1,6 @@
 import React from 'react';
 import { Puzzle, ArrowDownToLine } from 'lucide-react';
+import { motion } from 'motion/react';
 
 interface FloatingExtensionBubbleProps {
   onOpen: () => void;
@@ -7,7 +8,13 @@ interface FloatingExtensionBubbleProps {
 
 export const FloatingExtensionBubble: React.FC<FloatingExtensionBubbleProps> = ({ onOpen }) => {
   return (
-    <div className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-40 select-none">
+    <motion.div
+      initial={{ scale: 0, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.5 }}
+      whileHover={{ scale: 1.05 }}
+      className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-40 select-none"
+    >
       <button
         onClick={onOpen}
         type="button"
@@ -28,6 +35,6 @@ export const FloatingExtensionBubble: React.FC<FloatingExtensionBubbleProps> = (
           </span>
         </div>
       </button>
-    </div>
+    </motion.div>
   );
 };

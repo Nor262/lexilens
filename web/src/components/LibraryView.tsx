@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Search,
   Volume2,
@@ -201,9 +202,13 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             </button>
           </div>
         ) : (
-          filteredCards.map((card) => (
-            <div
+          filteredCards.map((card, idx) => (
+            <motion.div
               key={card.id}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: Math.min(idx * 0.04, 0.4), duration: 0.2 }}
+              whileHover={{ y: -2 }}
               className="p-3.5 sm:p-4 rounded-xl bg-surface-lowest border border-outline-hairline hover:border-outline shadow-sm space-y-2 transition-all w-full overflow-hidden"
             >
               {/* Row 1: Headword, POS, IPA, Audio, and Reps badge */}
@@ -287,7 +292,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                   <span className="line-clamp-1">Nguồn: {card.source_article_title}</span>
                 </div>
               )}
-            </div>
+            </motion.div>
           ))
         )}
       </div>
