@@ -182,8 +182,27 @@ export async function getCards(userId?: string): Promise<Flashcard[]> {
       .order('created_at', { ascending: false });
 
     if (!error && data) {
-      localStorage.setItem(`lexilens_cards_${userId}`, JSON.stringify(data));
-      return data as Flashcard[];
+      if (data.length > 0) {
+        localStorage.setItem(`lexilens_cards_${userId}`, JSON.stringify(data));
+        return data as Flashcard[];
+      } else {
+        // If Supabase returned empty, check if we have local cached cards
+        const stored = localStorage.getItem(`lexilens_cards_${userId}`);
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              // Upload local cards to Supabase in the background
+              for (const c of parsed) {
+                saveCard(c, userId).catch(() => {});
+              }
+              return parsed;
+            }
+          } catch {}
+        }
+        localStorage.setItem(`lexilens_cards_${userId}`, JSON.stringify([]));
+        return [];
+      }
     }
   } catch (e) {
     console.warn('Could not fetch from Supabase, attempting per-user local cache:', e);

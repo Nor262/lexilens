@@ -112,7 +112,8 @@ export const App: React.FC = () => {
     });
 
     // Listen to session delivered by Extension
-    const extensionAuthListener = async (event: MessageEvent) => {
+    // Listen to session & card sync events delivered by Extension content script
+    const extensionBridgeListener = async (event: MessageEvent) => {
       if (event.data?.type === 'LEXILENS_REQUEST_WEB_SESSION') {
         const { data } = await supabase.auth.getSession();
         if (data?.session) {
@@ -138,8 +139,52 @@ export const App: React.FC = () => {
           setAuthLoading(false);
         }
       }
+
+      // Live card saved from extension
+      if (event.data?.type === 'CARD_SAVED_FROM_EXTENSION' && event.data?.payload) {
+        const newCard: Flashcard = event.data.payload;
+        setCards((prev) => {
+          if (prev.some((c) => c.id === newCard.id)) return prev;
+          const updated = [newCard, ...prev];
+          const uid = sessionUser?.id || profile?.id;
+          if (uid) {
+            localStorage.setItem(`lexilens_cards_${uid}`, JSON.stringify(updated));
+            saveCard(newCard, uid).catch(() => {});
+          }
+          return updated;
+        });
+      }
+
+      // Direct cards sync from extension storage
+      if (event.data?.type === 'LEXILENS_CARDS_SYNC_PUSH' && Array.isArray(event.data?.payload)) {
+        const incomingCards: Flashcard[] = event.data.payload;
+        if (incomingCards.length > 0) {
+          setCards((prev) => {
+            const existingIds = new Set(prev.map((c) => c.id));
+            let hasNew = false;
+            const merged = [...prev];
+            for (const c of incomingCards) {
+              if (!existingIds.has(c.id)) {
+                merged.push(c);
+                existingIds.add(c.id);
+                hasNew = true;
+              }
+            }
+            if (hasNew) {
+              const uid = sessionUser?.id || profile?.id;
+              if (uid) {
+                localStorage.setItem(`lexilens_cards_${uid}`, JSON.stringify(merged));
+                for (const c of incomingCards) {
+                  saveCard(c, uid).catch(() => {});
+                }
+              }
+            }
+            return hasNew ? merged : prev;
+          });
+        }
+      }
     };
-    window.addEventListener('message', extensionAuthListener);
+    window.addEventListener('message', extensionBridgeListener);
 
     const {
       data: { subscription },
@@ -170,27 +215,15 @@ export const App: React.FC = () => {
           broadcastAuth(session);
         }
       });
+      // Also request latest cards from extension content script
+      window.postMessage({ type: 'LEXILENS_REQUEST_EXTENSION_CARDS' }, '*');
     };
     window.addEventListener('focus', handleFocus);
-
-    // Listen to direct broadcast/extension events
-    // @ts-ignore
-    if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
-      const extensionMsgListener = (msg: any) => {
-        if (msg?.type === 'CARD_SAVED_FROM_EXTENSION') {
-          supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session?.user?.id) loadAllData(session.user.id);
-          });
-        }
-      };
-      // @ts-ignore
-      chrome.runtime.onMessage.addListener(extensionMsgListener);
-    }
 
     return () => {
       subscription.unsubscribe();
       window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('message', extensionAuthListener);
+      window.removeEventListener('message', extensionBridgeListener);
     };
   }, []);
 
@@ -201,6 +234,9 @@ export const App: React.FC = () => {
     ]);
     setCards(fetchedCards);
     setReviews(fetchedReviews);
+
+    // Request extension to push any local cards
+    window.postMessage({ type: 'LEXILENS_REQUEST_EXTENSION_CARDS' }, '*');
 
     // Compute real streak dynamically from review dates
     const stats = calculateDynamicStats(fetchedCards, fetchedReviews);

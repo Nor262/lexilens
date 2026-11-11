@@ -43,6 +43,38 @@ export interface AuthUserState {
   session: any | null;
 }
 
+/**
+ * Ensures the Supabase client has a valid authenticated session
+ * before running database queries or upserts subject to RLS.
+ */
+export async function ensureSupabaseAuth(): Promise<boolean> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    if (data?.session?.access_token) {
+      return true;
+    }
+
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      const stored = await chrome.storage.local.get(['lexilens_session', 'lexilens_saved_user']);
+      if (stored.lexilens_session?.access_token) {
+        const { data: setRes, error } = await supabase.auth.setSession({
+          access_token: stored.lexilens_session.access_token,
+          refresh_token: stored.lexilens_session.refresh_token || '',
+        });
+        if (!error && setRes?.session) {
+          return true;
+        }
+      }
+    }
+
+    const cookieUser = await syncSessionFromCookie();
+    if (cookieUser) return true;
+  } catch (e) {
+    console.warn('[LexiLens] ensureSupabaseAuth error:', e);
+  }
+  return false;
+}
+
 export async function getExtensionUser(): Promise<any | null> {
   try {
     const { data } = await supabase.auth.getSession();
@@ -52,14 +84,14 @@ export async function getExtensionUser(): Promise<any | null> {
     if (typeof chrome !== 'undefined' && chrome.storage?.local) {
       const stored = await chrome.storage.local.get(['lexilens_saved_user', 'lexilens_session']);
       if (stored.lexilens_saved_user) {
-        // Restore supabase client session in the background asynchronously
+        // Restore supabase client session in the background
         if (stored.lexilens_session?.access_token) {
-          supabase.auth
-            .setSession({
+          try {
+            await supabase.auth.setSession({
               access_token: stored.lexilens_session.access_token,
-              refresh_token: stored.lexilens_session.refresh_token,
-            })
-            .catch(() => {});
+              refresh_token: stored.lexilens_session.refresh_token || '',
+            });
+          } catch {}
         }
         return stored.lexilens_saved_user;
       }
@@ -175,6 +207,7 @@ export async function signOutExtension() {
 export async function syncAllLocalCardsToCloud(userId: string): Promise<number> {
   if (!userId || typeof chrome === 'undefined' || !chrome.storage?.local) return 0;
   try {
+    await ensureSupabaseAuth();
     const res = await chrome.storage.local.get(['cards']);
     const localCards = Array.isArray(res.cards) ? res.cards : [];
     if (localCards.length === 0) return 0;
@@ -368,6 +401,8 @@ export async function syncCardToCloud(rawCard: any, userId: string): Promise<boo
   if (!userId) return false;
 
   try {
+    await ensureSupabaseAuth();
+
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const cleanId = UUID_REGEX.test(rawCard.id) ? rawCard.id : crypto.randomUUID();
     rawCard.id = cleanId;
@@ -420,6 +455,7 @@ export async function syncCardToCloud(rawCard: any, userId: string): Promise<boo
 export async function fetchCardsFromCloud(userId: string): Promise<any[]> {
   if (!userId) return [];
   try {
+    await ensureSupabaseAuth();
     const fetchPromise = supabase
       .from('cards')
       .select('*')
@@ -441,17 +477,21 @@ export async function fetchCardsFromCloud(userId: string): Promise<any[]> {
 }
 
 function notifyWebTabsOfNewCard(card: any) {
-  chrome.tabs.query(
-    { url: ['https://lexilens-app.vercel.app/*', 'http://localhost:3000/*'] },
-    (tabs) => {
-      tabs.forEach((tab) => {
-        if (tab.id) {
-          chrome.tabs.sendMessage(tab.id, {
-            type: 'CARD_SAVED_FROM_EXTENSION',
-            payload: card,
-          }).catch(() => {});
-        }
-      });
-    }
-  );
+  if (typeof chrome === 'undefined' || !chrome.tabs) return;
+  chrome.tabs.query({}, (tabs) => {
+    tabs.forEach((tab) => {
+      const u = tab.url || '';
+      if (
+        (u.includes('lexilens-app.vercel.app') ||
+          u.includes('localhost:3000') ||
+          u.includes('localhost:5173')) &&
+        tab.id
+      ) {
+        chrome.tabs.sendMessage(tab.id, {
+          type: 'CARD_SAVED_FROM_EXTENSION',
+          payload: card,
+        }).catch(() => {});
+      }
+    });
+  });
 }

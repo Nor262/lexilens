@@ -467,8 +467,10 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
             user = await tryAutoSyncFromWebTab();
           }
 
-          // If logged in, fetch from cloud
-          if (user) {
+          const localCards = await getFlashcards();
+
+          // If logged in, fetch from cloud and merge
+          if (user?.id) {
             const cloudCards = await fetchCardsFromCloud(user.id);
             if (cloudCards && cloudCards.length > 0) {
               // Convert cloud cards to extension format
@@ -482,6 +484,8 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
                 root_meaning: c.root_meaning || '',
                 definition_en: c.definition_en || '',
                 why: c.why || '',
+                collocations: c.collocations || [],
+                simplified_sentence: c.simplified_sentence || '',
                 sentence: c.sentence || '',
                 article_title: c.source_article_title || 'Tài liệu',
                 article_url: c.source_article_url || '',
@@ -497,13 +501,25 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
                   state: c.state,
                 },
               }));
+
+              // Merge local cards into cloud list if any local cards were not yet synced
+              const cloudIds = new Set(formatted.map((c) => c.id));
+              for (const loc of localCards) {
+                if (!cloudIds.has(loc.id)) {
+                  formatted.unshift(loc);
+                  syncCardToCloud(loc, user.id).catch(() => {});
+                }
+              }
+
               sendResponse({ success: true, data: formatted });
               return;
+            } else if (localCards.length > 0) {
+              // Cloud has 0 cards but local has cards -> sync local cards to cloud!
+              syncAllLocalCardsToCloud(user.id).catch(() => {});
             }
           }
 
           // Fallback to local storage
-          const localCards = await getFlashcards();
           sendResponse({ success: true, data: localCards });
           break;
         }

@@ -143,15 +143,21 @@ const ContentApp: React.FC = () => {
     window.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('keydown', handleKeyDown);
 
-    // Listen to background messages (e.g. keyboard shortcuts)
+    // Listen to background messages (e.g. keyboard shortcuts, card saved)
     const messageListener = (msg: any) => {
       if (msg.type === 'TRIGGER_SCREEN_CROP') {
         setShowCrop(true);
       }
+      if (msg.type === 'CARD_SAVED_FROM_EXTENSION' && msg.payload) {
+        window.postMessage({ type: 'CARD_SAVED_FROM_EXTENSION', payload: msg.payload }, '*');
+      }
+      if (msg.type === 'LEXILENS_SYNC_CARDS_TO_PAGE' && Array.isArray(msg.payload)) {
+        window.postMessage({ type: 'LEXILENS_CARDS_SYNC_PUSH', payload: msg.payload }, '*');
+      }
     };
     chrome.runtime.onMessage.addListener(messageListener);
 
-    // Listen to Web App auth sync bridge events
+    // Listen to Web App auth & cards sync bridge events
     const webAuthBridgeListener = (event: MessageEvent) => {
       // 1. Web -> Extension sync: Web sends token, Extension saves it
       if (event.data?.type === 'LEXILENS_AUTH_STATE_CHANGE' && event.data?.payload) {
@@ -184,10 +190,22 @@ const ContentApp: React.FC = () => {
           }
         });
       }
+
+      // 3. Web asking for Extension cards: Extension replies with stored cards
+      if (event.data?.type === 'LEXILENS_REQUEST_EXTENSION_CARDS') {
+        chrome.storage.local.get(['cards'], (cRes) => {
+          if (Array.isArray(cRes?.cards) && cRes.cards.length > 0) {
+            window.postMessage({
+              type: 'LEXILENS_CARDS_SYNC_PUSH',
+              payload: cRes.cards,
+            }, '*');
+          }
+        });
+      }
     };
     window.addEventListener('message', webAuthBridgeListener);
 
-    // When mounting on web app, proactively synchronize session in both directions
+    // When mounting on web app, proactively synchronize session & cards in both directions
     if (window.location.hostname.includes('lexilens-app.vercel.app') || window.location.hostname === 'localhost') {
       // 1. Proactively extract Web App session from localStorage if already logged in
       try {
@@ -230,6 +248,16 @@ const ContentApp: React.FC = () => {
               }, '*');
             }
           });
+        }
+      });
+
+      // 4. Proactively push any cards saved in extension directly to Web App
+      chrome.storage.local.get(['cards'], (cRes) => {
+        if (Array.isArray(cRes?.cards) && cRes.cards.length > 0) {
+          window.postMessage({
+            type: 'LEXILENS_CARDS_SYNC_PUSH',
+            payload: cRes.cards,
+          }, '*');
         }
       });
     }
