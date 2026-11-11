@@ -12,7 +12,11 @@ export const FloatingTrigger: React.FC<FloatingTriggerProps> = ({ x, y, onClick 
     <button
       onClick={(e) => {
         e.stopPropagation();
+        e.preventDefault();
         onClick();
+      }}
+      onMouseDown={(e) => {
+        e.stopPropagation();
       }}
       style={{
         position: 'absolute',
@@ -20,10 +24,11 @@ export const FloatingTrigger: React.FC<FloatingTriggerProps> = ({ x, y, onClick 
         top: `${y}px`,
         zIndex: 2147483647,
       }}
-      className="flex items-center justify-center w-7 h-7 rounded-md bg-surface text-primary shadow-academic border border-outline-hairline hover:bg-surface-low hover:border-primary transition-all duration-150 transform hover:scale-105 active:scale-95 cursor-pointer"
-      title="Tra cứu với LexiLens"
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary text-white shadow-xl border border-white/20 hover:bg-primary-hover transition-all duration-150 transform hover:scale-105 active:scale-95 cursor-pointer text-xs font-sans font-medium select-none pointer-events-auto"
+      title="Bấm để tra cứu nghĩa ngữ cảnh với LexiLens"
     >
-      <SparklesIcon size={15} className="text-primary animate-pulse" />
+      <SparklesIcon size={14} className="text-amber-300 animate-pulse shrink-0" />
+      <span className="font-semibold tracking-wide">Tra LexiLens</span>
     </button>
   );
 };

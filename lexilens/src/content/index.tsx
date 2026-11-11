@@ -63,9 +63,9 @@ const ContentApp: React.FC = () => {
 
   useEffect(() => {
     const handleMouseUp = (e: MouseEvent) => {
-      // Ignore if clicking inside LexiLens container
-      const target = e.target as HTMLElement;
-      if (target?.closest?.('#lexilens-host')) return;
+      const path = e.composedPath ? e.composedPath() : [];
+      const isInside = path.some((el: any) => el?.id === 'lexilens-host' || el?.id === 'lexilens-root');
+      if (isInside) return;
 
       const sel = window.getSelection();
       const text = sel ? sel.toString().trim() : '';
@@ -79,21 +79,29 @@ const ContentApp: React.FC = () => {
       if (!range) return;
 
       const rect = range.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) return;
+
       const sentence = extractSurroundingSentence(sel!);
 
-      // Show trigger button near top-right of selection
+      // Calculate position so it doesn't go offscreen
+      const pageX = rect.left + window.scrollX;
+      const pageY = rect.top + window.scrollY - 36;
+      const clampedX = Math.max(10, Math.min(window.innerWidth - 130, pageX));
+      const clampedY = pageY < window.scrollY + 10 ? rect.bottom + window.scrollY + 8 : pageY;
+
       setTrigger({
         visible: true,
-        x: rect.right + window.scrollX + 6,
-        y: rect.top + window.scrollY - 10,
+        x: clampedX,
+        y: clampedY,
         selection: text,
         sentence,
       });
     };
 
     const handleMouseDown = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (target?.closest?.('#lexilens-host')) return;
+      const path = e.composedPath ? e.composedPath() : [];
+      const isInside = path.some((el: any) => el?.id === 'lexilens-host' || el?.id === 'lexilens-root');
+      if (isInside) return;
       // Hide trigger if clicking elsewhere
       setTrigger((prev) => ({ ...prev, visible: false }));
     };
@@ -242,17 +250,26 @@ const ContentApp: React.FC = () => {
   );
 };
 
-// Initialize Shadow DOM Container
+// Initialize Shadow DOM Container with proper positioning
 function initLexiLens() {
   if (document.getElementById('lexilens-host')) return;
 
   const host = document.createElement('div');
   host.id = 'lexilens-host';
+  host.style.position = 'absolute';
+  host.style.top = '0';
+  host.style.left = '0';
+  host.style.width = '100%';
+  host.style.height = '0';
+  host.style.overflow = 'visible';
+  host.style.zIndex = '2147483647';
+  host.style.pointerEvents = 'none';
   document.body.appendChild(host);
 
   const shadowRoot = host.attachShadow({ mode: 'open' });
   const mountPoint = document.createElement('div');
   mountPoint.id = 'lexilens-root';
+  mountPoint.style.pointerEvents = 'auto';
   shadowRoot.appendChild(mountPoint);
 
   // Inject styles into Shadow DOM

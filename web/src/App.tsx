@@ -7,6 +7,7 @@ import { StatsView } from './components/StatsView';
 import { SettingsView } from './components/SettingsView';
 import { InstallExtensionModal } from './components/InstallExtensionModal';
 import { FloatingExtensionBubble } from './components/FloatingExtensionBubble';
+import { AuthGateView } from './components/AuthGateView';
 import { Flashcard, ReviewLog, UserProfile, FSRSRating } from './types';
 import {
   getCards,
@@ -19,47 +20,56 @@ import {
 } from './services/supabase';
 
 export const App: React.FC = () => {
+  const [sessionUser, setSessionUser] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [reviews, setReviews] = useState<ReviewLog[]>([]);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState<boolean>(false);
   const [profile, setProfile] = useState<UserProfile>({
-    id: 'guest',
-    display_name: 'Học viên NNA',
+    id: '',
+    display_name: 'Học viên',
     daily_target: 20,
-    current_streak: 1,
+    current_streak: 0,
     last_active_date: new Date().toISOString().slice(0, 10),
   });
 
-  // Initial data loading from Supabase / Storage
+  // Check user session on startup
   useEffect(() => {
-    loadAllData();
-
-    // Listen to Supabase Auth state change
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
+        setSessionUser(session.user);
         setProfile((prev) => ({
           ...prev,
           id: session.user.id,
           email: session.user.email,
-          display_name: session.user.user_metadata?.full_name || prev.display_name,
+          display_name: session.user.user_metadata?.full_name || 'Học viên',
         }));
         loadAllData(session.user.id);
+      } else {
+        setSessionUser(null);
       }
+      setAuthLoading(false);
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
+        setSessionUser(session.user);
         setProfile((prev) => ({
           ...prev,
           id: session.user.id,
           email: session.user.email,
-          display_name: session.user.user_metadata?.full_name || prev.display_name,
+          display_name: session.user.user_metadata?.full_name || 'Học viên',
         }));
         loadAllData(session.user.id);
+      } else {
+        setSessionUser(null);
+        setCards([]);
+        setReviews([]);
       }
+      setAuthLoading(false);
     });
 
     return () => {
@@ -67,7 +77,7 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  const loadAllData = async (userId?: string) => {
+  const loadAllData = async (userId: string) => {
     const [fetchedCards, fetchedReviews] = await Promise.all([
       getCards(userId),
       getReviews(userId),
@@ -83,9 +93,21 @@ export const App: React.FC = () => {
     }));
   };
 
+  const handleAuthenticated = (user: any) => {
+    setSessionUser(user);
+    setProfile((prev) => ({
+      ...prev,
+      id: user.id,
+      email: user.email,
+      display_name: user.user_metadata?.full_name || 'Học viên',
+    }));
+    loadAllData(user.id);
+  };
+
   // When a card is rated in StudyDeck
   const handleUpdateCard = async (updated: Flashcard, rating: FSRSRating = 3) => {
-    const userId = profile.id !== 'guest' ? profile.id : undefined;
+    if (!sessionUser) return;
+    const userId = sessionUser.id;
 
     // 1. Update Card State
     await saveCard(updated, userId);
@@ -112,14 +134,16 @@ export const App: React.FC = () => {
 
   // Add new card
   const handleAddCard = async (newCard: Flashcard) => {
-    const userId = profile.id !== 'guest' ? profile.id : undefined;
+    if (!sessionUser) return;
+    const userId = sessionUser.id;
     await saveCard(newCard, userId);
     setCards((prev) => [newCard, ...prev]);
   };
 
   // Delete card
   const handleDeleteCard = async (cardId: string) => {
-    const userId = profile.id !== 'guest' ? profile.id : undefined;
+    if (!sessionUser) return;
+    const userId = sessionUser.id;
     await deleteCard(cardId, userId);
     setCards((prev) => prev.filter((c) => c.id !== cardId));
   };
@@ -132,11 +156,29 @@ export const App: React.FC = () => {
   // Reset data to initial state
   const handleResetData = () => {
     if (confirm('Bạn có chắc chắn muốn đặt lại dữ liệu học tập về ban đầu không?')) {
-      localStorage.removeItem('lexilens_web_cards');
-      localStorage.removeItem('lexilens_web_reviews');
-      loadAllData();
+      if (sessionUser?.id) {
+        localStorage.removeItem(`lexilens_cards_${sessionUser.id}`);
+        localStorage.removeItem(`lexilens_reviews_${sessionUser.id}`);
+        loadAllData(sessionUser.id);
+      }
     }
   };
+
+  // 1. Loading screen while verifying auth session
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-surface flex flex-col items-center justify-center p-4 select-none">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-3" />
+        <p className="font-serif text-sm font-semibold text-primary">LexiLens</p>
+        <p className="font-sans text-xs text-on-surface-muted mt-1">Đang xác thực phiên học tập...</p>
+      </div>
+    );
+  }
+
+  // 2. Strict Auth Gate: MUST sign in / register before viewing app or data
+  if (!sessionUser) {
+    return <AuthGateView onAuthenticated={handleAuthenticated} />;
+  }
 
   const now = new Date();
   const dueCount = cards.filter((c) => new Date(c.due) <= now).length;
@@ -178,11 +220,7 @@ export const App: React.FC = () => {
         )}
 
         {activeTab === 'stats' && (
-          <StatsView
-            cards={cards}
-            reviews={reviews}
-            profile={profile}
-          />
+          <StatsView cards={cards} reviews={reviews} profile={profile} />
         )}
 
         {activeTab === 'settings' && (

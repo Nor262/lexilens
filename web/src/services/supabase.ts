@@ -167,150 +167,33 @@ function generateHistoricalReviews(): ReviewLog[] {
 }
 
 /**
- * Load cards from Supabase or LocalStorage
+ * Load cards strictly for the authenticated user from Supabase or per-user local storage
  */
 export async function getCards(userId?: string): Promise<Flashcard[]> {
-  if (userId && userId !== 'guest') {
-    try {
-      const { data, error } = await supabase
-        .from('cards')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-
-      if (!error && data && data.length > 0) {
-        return data as Flashcard[];
-      }
-    } catch (e) {
-      console.warn('Could not fetch from Supabase, using local:', e);
-    }
+  if (!userId || userId === 'guest') {
+    return [];
   }
 
-  const stored = localStorage.getItem(LOCAL_CARDS_KEY);
+  try {
+    const { data, error } = await supabase
+      .from('cards')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (!error && data) {
+      localStorage.setItem(`lexilens_cards_${userId}`, JSON.stringify(data));
+      return data as Flashcard[];
+    }
+  } catch (e) {
+    console.warn('Could not fetch from Supabase, attempting per-user local cache:', e);
+  }
+
+  const stored = localStorage.getItem(`lexilens_cards_${userId}`);
   if (stored) {
     try {
       const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        // Enrich any card missing root_meaning from seed if matching
-        const enriched = parsed.map((card: Flashcard) => {
-          if (!card.root_meaning) {
-            const seed = INITIAL_ACADEMIC_CARDS.find((s) => s.headword.toLowerCase() === card.headword.toLowerCase());
-            if (seed?.root_meaning) {
-              return { ...card, root_meaning: seed.root_meaning };
-            }
-          }
-          return card;
-        });
-        return enriched;
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  localStorage.setItem(LOCAL_CARDS_KEY, JSON.stringify(INITIAL_ACADEMIC_CARDS));
-  return INITIAL_ACADEMIC_CARDS;
-}
-
-/**
- * Save or update a flashcard
- */
-export async function saveCard(card: Flashcard, userId?: string): Promise<void> {
-  const localCards = await getCards();
-  const index = localCards.findIndex((c) => c.id === card.id);
-  if (index >= 0) {
-    localCards[index] = card;
-  } else {
-    localCards.unshift(card);
-  }
-  localStorage.setItem(LOCAL_CARDS_KEY, JSON.stringify(localCards));
-
-  if (userId && userId !== 'guest') {
-    try {
-      await supabase.from('cards').upsert({
-        ...card,
-        user_id: userId,
-      });
-    } catch (err) {
-      console.error('Failed to sync card to Supabase:', err);
-    }
-  }
-}
-
-/**
- * Delete a flashcard
- */
-export async function deleteCard(cardId: string, userId?: string): Promise<void> {
-  const localCards = await getCards();
-  const filtered = localCards.filter((c) => c.id !== cardId);
-  localStorage.setItem(LOCAL_CARDS_KEY, JSON.stringify(filtered));
-
-  if (userId && userId !== 'guest') {
-    try {
-      await supabase.from('cards').delete().eq('id', cardId).eq('user_id', userId);
-    } catch (err) {
-      console.error('Failed to delete card on Supabase:', err);
-    }
-  }
-}
-
-/**
- * Log a card review (FSRS history)
- */
-export async function logReview(review: ReviewLog, userId?: string): Promise<void> {
-  const stored = localStorage.getItem(LOCAL_REVIEWS_KEY);
-  let reviews: ReviewLog[] = [];
-  if (stored) {
-    try {
-      reviews = JSON.parse(stored);
-    } catch {
-      reviews = [];
-    }
-  }
-
-  reviews.unshift(review);
-  localStorage.setItem(LOCAL_REVIEWS_KEY, JSON.stringify(reviews));
-
-  if (userId && userId !== 'guest') {
-    try {
-      await supabase.from('reviews').insert({
-        card_id: review.card_id,
-        user_id: userId,
-        rating: review.rating,
-        duration_ms: review.duration_ms,
-        reviewed_at: review.reviewed_at,
-      });
-    } catch (err) {
-      console.error('Failed to log review to Supabase:', err);
-    }
-  }
-}
-
-/**
- * Fetch all review logs
- */
-export async function getReviews(userId?: string): Promise<ReviewLog[]> {
-  if (userId && userId !== 'guest') {
-    try {
-      const { data, error } = await supabase
-        .from('reviews')
-        .select('*')
-        .eq('user_id', userId)
-        .order('reviewed_at', { ascending: false });
-
-      if (!error && data && data.length > 0) {
-        return data as ReviewLog[];
-      }
-    } catch (e) {
-      console.warn('Could not fetch reviews from Supabase, using local:', e);
-    }
-  }
-
-  const stored = localStorage.getItem(LOCAL_REVIEWS_KEY);
-  if (stored) {
-    try {
-      const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     } catch {
@@ -318,9 +201,115 @@ export async function getReviews(userId?: string): Promise<ReviewLog[]> {
     }
   }
 
-  const initialReviews = generateHistoricalReviews();
-  localStorage.setItem(LOCAL_REVIEWS_KEY, JSON.stringify(initialReviews));
-  return initialReviews;
+  return [];
+}
+
+/**
+ * Save or update a flashcard for authenticated user
+ */
+export async function saveCard(card: Flashcard, userId?: string): Promise<void> {
+  if (!userId || userId === 'guest') return;
+
+  card.user_id = userId;
+  const userKey = `lexilens_cards_${userId}`;
+  const localCards = await getCards(userId);
+  const index = localCards.findIndex((c) => c.id === card.id);
+  if (index >= 0) {
+    localCards[index] = card;
+  } else {
+    localCards.unshift(card);
+  }
+  localStorage.setItem(userKey, JSON.stringify(localCards));
+
+  try {
+    await supabase.from('cards').upsert({
+      ...card,
+      user_id: userId,
+    });
+  } catch (err) {
+    console.error('Failed to sync card to Supabase:', err);
+  }
+}
+
+/**
+ * Delete a flashcard for authenticated user
+ */
+export async function deleteCard(cardId: string, userId?: string): Promise<void> {
+  if (!userId || userId === 'guest') return;
+
+  const userKey = `lexilens_cards_${userId}`;
+  const localCards = await getCards(userId);
+  const filtered = localCards.filter((c) => c.id !== cardId);
+  localStorage.setItem(userKey, JSON.stringify(filtered));
+
+  try {
+    await supabase.from('cards').delete().eq('id', cardId).eq('user_id', userId);
+  } catch (err) {
+    console.error('Failed to delete card on Supabase:', err);
+  }
+}
+
+/**
+ * Log a card review (FSRS history) for authenticated user
+ */
+export async function logReview(review: ReviewLog, userId?: string): Promise<void> {
+  if (!userId || userId === 'guest') return;
+
+  review.user_id = userId;
+  const userReviewsKey = `lexilens_reviews_${userId}`;
+  const reviews = await getReviews(userId);
+  reviews.unshift(review);
+  localStorage.setItem(userReviewsKey, JSON.stringify(reviews.slice(0, 500)));
+
+  try {
+    await supabase.from('reviews').insert({
+      card_id: review.card_id,
+      user_id: userId,
+      rating: review.rating,
+      duration_ms: review.duration_ms,
+      reviewed_at: review.reviewed_at,
+    });
+  } catch (err) {
+    console.error('Failed to log review to Supabase:', err);
+  }
+}
+
+/**
+ * Fetch all review logs for authenticated user
+ */
+export async function getReviews(userId?: string): Promise<ReviewLog[]> {
+  if (!userId || userId === 'guest') {
+    return [];
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('reviews')
+      .select('*')
+      .eq('user_id', userId)
+      .order('reviewed_at', { ascending: false });
+
+    if (!error && data) {
+      localStorage.setItem(`lexilens_reviews_${userId}`, JSON.stringify(data));
+      return data as ReviewLog[];
+    }
+  } catch (e) {
+    console.warn('Could not fetch reviews from Supabase, attempting per-user cache:', e);
+  }
+
+  const stored = localStorage.getItem(`lexilens_reviews_${userId}`);
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return [];
 }
 
 /**

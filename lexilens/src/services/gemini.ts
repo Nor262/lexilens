@@ -1,6 +1,6 @@
 import { WordLookupResult, SentenceAnalysisResult, OCRResult } from '../types';
 
-const DEFAULT_MODEL = 'gemini-2.0-flash';
+const DEFAULT_MODEL = 'gemini-1.5-flash';
 const GEMINI_API_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 /**
@@ -17,25 +17,41 @@ function cleanJsonString(raw: string): string {
 }
 
 /**
- * Call Gemini REST API directly
+ * Call Gemini REST API directly with automatic model fallback
  */
 async function callGemini(apiKey: string, model: string, contents: any[]): Promise<string> {
-  const targetModel = model || DEFAULT_MODEL;
-  const url = `${GEMINI_API_ENDPOINT}/${targetModel}:generateContent?key=${apiKey}`;
+  let targetModel = model || DEFAULT_MODEL;
+  if (targetModel === 'gemini-2.0-flash') {
+    targetModel = 'gemini-1.5-flash';
+  }
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      contents,
-      generationConfig: {
-        temperature: 0.2, // Low temperature for high precision and zero hallucinations
-        responseMimeType: 'application/json',
+  const makeRequest = async (m: string) => {
+    const url = `${GEMINI_API_ENDPOINT}/${m}:generateContent?key=${apiKey}`;
+    return fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
-    }),
-  });
+      body: JSON.stringify({
+        contents,
+        generationConfig: {
+          temperature: 0.2, // Low temperature for high precision
+          responseMimeType: 'application/json',
+        },
+      }),
+    });
+  };
+
+  let response = await makeRequest(targetModel);
+
+  // If primary model returns 404, fallback to gemini-1.5-flash
+  if (!response.ok && response.status === 404 && targetModel !== 'gemini-1.5-flash') {
+    console.warn(`[LexiLens] Model ${targetModel} not found, retrying with gemini-1.5-flash...`);
+    const fallbackResponse = await makeRequest('gemini-1.5-flash');
+    if (fallbackResponse.ok) {
+      response = fallbackResponse;
+    }
+  }
 
   if (!response.ok) {
     const errorText = await response.text();

@@ -7,7 +7,7 @@ import '../styles/global.css';
 const OptionsApp: React.FC = () => {
   const [settings, setSettings] = useState<UserSettings>({
     geminiApiKey: '',
-    preferredModel: 'gemini-2.0-flash',
+    preferredModel: 'gemini-1.5-flash',
     defaultTopic: 'auto',
     dailyReminderHour: 20,
     customTopics: [],
@@ -57,8 +57,13 @@ const OptionsApp: React.FC = () => {
 
     try {
       const startTime = performance.now();
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${settings.preferredModel}:generateContent?key=${settings.geminiApiKey}`,
+      let targetModel = settings.preferredModel || 'gemini-1.5-flash';
+      if (targetModel === 'gemini-2.0-flash') {
+        targetModel = 'gemini-1.5-flash';
+      }
+
+      let res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${settings.geminiApiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -68,16 +73,34 @@ const OptionsApp: React.FC = () => {
         }
       );
 
+      // If 404, fallback to gemini-1.5-flash
+      if (!res.ok && res.status === 404 && targetModel !== 'gemini-1.5-flash') {
+        targetModel = 'gemini-1.5-flash';
+        res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${settings.geminiApiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: 'Ping test. Reply with word OK.' }] }],
+            }),
+          }
+        );
+      }
+
       const elapsed = Math.round(performance.now() - startTime);
 
       if (res.ok) {
-        setTestStatus(` Kết nối thành công! Tốc độ phản hồi: ${elapsed}ms.`);
+        setTestStatus(`✅ Kết nối thành công với ${targetModel}! Tốc độ phản hồi: ${elapsed}ms.`);
+        if (settings.preferredModel !== targetModel) {
+          setSettings((prev) => ({ ...prev, preferredModel: targetModel }));
+        }
       } else {
         const err = await res.text();
-        setTestStatus(` Lỗi kết nối (${res.status}): ${err}`);
+        setTestStatus(`❌ Lỗi kết nối (${res.status}): ${err}`);
       }
     } catch (e: any) {
-      setTestStatus(` Lỗi mạng: ${e.message}`);
+      setTestStatus(`❌ Lỗi mạng: ${e.message}`);
     } finally {
       setTesting(false);
     }
@@ -151,11 +174,12 @@ const OptionsApp: React.FC = () => {
             onChange={(e) => setSettings({ ...settings, preferredModel: e.target.value })}
             className="w-full px-3 py-2 text-xs bg-surface border border-outline-hairline rounded focus:border-primary outline-none font-mono"
           >
-            <option value="gemini-2.0-flash">gemini-2.0-flash (Khuyên dùng - Cực nhanh & Multimodal OCR)</option>
-            <option value="gemini-1.5-flash">gemini-1.5-flash (Ổn định, tiết kiệm quota)</option>
+            <option value="gemini-1.5-flash">gemini-1.5-flash (Khuyên dùng - Siêu tốc, ổn định & Free 1.500 lượt/ngày)</option>
+            <option value="gemini-2.5-flash">gemini-2.5-flash (Thế hệ mới nhất từ Google DeepMind)</option>
+            <option value="gemini-1.5-pro">gemini-1.5-pro (Phân tích học thuật chuyên sâu)</option>
           </select>
           <p className="text-[11px] text-on-surface-variant">
-            Mô hình Gemini 2.0 Flash có tốc độ phản hồi trung bình chỉ ~0.5 giây và hỗ trợ phân tích ảnh trực tiếp.
+            Mô hình Gemini 1.5 Flash có tốc độ phản hồi cực nhanh (~0.4s), xử lý tốt văn cảnh học thuật và được miễn phí hoàn toàn không cần thẻ tín dụng.
           </p>
         </div>
 
