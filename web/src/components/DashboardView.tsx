@@ -183,6 +183,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </div>
 
                 {/* Sentence row: cleanly below */}
+                {card.root_meaning && (
+                  <p className="text-[11px] text-secondary font-sans truncate">
+                    <span className="font-semibold">Nghĩa gốc:</span> {card.root_meaning}
+                  </p>
+                )}
                 <p className="text-xs text-on-surface-muted line-clamp-2 leading-relaxed">
                   "{card.sentence}"
                 </p>

@@ -3,6 +3,7 @@ export interface WordLookupResult {
   pos: string;
   ipa: string;
   meaning_vi: string;
+  root_meaning?: string;
   definition_en: string;
   why: string;
   other_meanings: string[];
@@ -39,6 +40,7 @@ export interface Flashcard {
   pos: string;
   ipa: string;
   meaning_vi: string;
+  root_meaning?: string;
   definition_en: string;
   why: string;
   sentence: string;

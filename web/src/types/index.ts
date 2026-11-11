@@ -8,6 +8,7 @@ export interface Flashcard {
   ipa?: string;
   audio_url?: string;
   meaning_vi: string;
+  root_meaning?: string;
   definition_en?: string;
   why?: string;
   collocations?: string[];

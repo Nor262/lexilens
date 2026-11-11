@@ -33,6 +33,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   const [lookupLoading, setLookupLoading] = useState<boolean>(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [lookedUpData, setLookedUpData] = useState<Partial<Flashcard> | null>(null);
+  const [rootMeaning, setRootMeaning] = useState<string>('');
   const [meaningVi, setMeaningVi] = useState<string>('');
   const [whyReason, setWhyReason] = useState<string>('');
   const [customSentence, setCustomSentence] = useState<string>('');
@@ -40,6 +41,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   const filteredCards = cards.filter(
     (card) =>
       card.headword.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (card.root_meaning && card.root_meaning.toLowerCase().includes(searchTerm.toLowerCase())) ||
       card.meaning_vi.toLowerCase().includes(searchTerm.toLowerCase()) ||
       card.sentence.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -88,6 +90,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       pos: lookedUpData.pos || 'noun',
       ipa: lookedUpData.ipa || `/${inputWord.trim()}/`,
       audio_url: lookedUpData.audio_url,
+      root_meaning: rootMeaning.trim() || lookedUpData.definition_en || '',
       meaning_vi: meaningVi.trim() || 'Nghĩa ngữ cảnh',
       definition_en: lookedUpData.definition_en || '',
       sentence: customSentence.trim() || lookedUpData.sentence || `Example sentence for ${inputWord}.`,
@@ -109,6 +112,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     onAddCard(newCard);
     setShowAddModal(false);
     setInputWord('');
+    setRootMeaning('');
     setMeaningVi('');
     setWhyReason('');
     setCustomSentence('');
@@ -241,16 +245,23 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 </div>
               </div>
 
-              {/* Row 2: Meaning in Context & English definition */}
-              <div className="text-xs sm:text-sm break-words leading-relaxed">
-                <span className="font-semibold text-on-surface mr-1.5">
-                  {card.meaning_vi}
-                </span>
-                {card.definition_en && (
-                  <span className="text-xs text-on-surface-muted font-sans italic">
-                    — {card.definition_en}
-                  </span>
+              {/* Row 2: Root Meaning & Meaning in Context */}
+              <div className="text-xs sm:text-sm break-words leading-relaxed space-y-1">
+                {card.root_meaning && (
+                  <div className="text-[11px] sm:text-xs text-on-surface-muted bg-surface-low px-2 py-1 rounded border border-outline-hairline/60">
+                    <span className="font-semibold text-secondary">Nghĩa gốc: </span>
+                    <span className="text-on-surface">{card.root_meaning}</span>
+                  </div>
                 )}
+                <div className="flex flex-wrap items-baseline gap-1">
+                  <span className="font-semibold text-primary">Nghĩa ngữ cảnh: </span>
+                  <span className="font-semibold text-on-surface">{card.meaning_vi}</span>
+                  {card.definition_en && (
+                    <span className="text-[11px] sm:text-xs text-on-surface-muted font-sans italic">
+                      — {card.definition_en}
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Row 3: Sentence with clean wrapping */}
@@ -363,16 +374,29 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 </div>
               )}
 
-              {/* Vietnamese Meaning & Context */}
+              {/* Meanings */}
               <div>
                 <label className="block text-xs font-semibold text-on-surface mb-1">
-                  Nghĩa tiếng Việt trong ngữ cảnh:
+                  Nghĩa gốc (Từ điển / Nghĩa phổ thông):
+                </label>
+                <input
+                  type="text"
+                  value={rootMeaning}
+                  onChange={(e) => setRootMeaning(e.target.value)}
+                  placeholder="Ví dụ: có tài hùng biện, lưu loát (nghĩa gốc từ điển)..."
+                  className="w-full px-3 py-2 rounded-lg bg-surface-lowest border border-outline-hairline text-sm text-on-surface focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-on-surface mb-1">
+                  Nghĩa tiếng Việt trong ngữ cảnh bài đọc:
                 </label>
                 <input
                   type="text"
                   value={meaningVi}
                   onChange={(e) => setMeaningVi(e.target.value)}
-                  placeholder="Ví dụ: hùng hồn, lưu loát, giàu sức thuyết phục..."
+                  placeholder="Ví dụ: giàu sức thuyết phục, hùng hồn trong tranh luận..."
                   required
                   className="w-full px-3 py-2 rounded-lg bg-surface-lowest border border-outline-hairline text-sm text-on-surface focus:outline-none focus:border-primary"
                 />

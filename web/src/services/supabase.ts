@@ -19,6 +19,7 @@ const INITIAL_ACADEMIC_CARDS: Flashcard[] = [
     pos: 'adjective',
     ipa: '/ɪˈfem.ər.əl/',
     audio_url: 'https://api.dictionaryapi.dev/media/pronunciations/en/ephemeral-us.mp3',
+    root_meaning: 'Chóng tàn, chỉ tồn tại trong thời gian ngắn (vốn dùng cho loài phù du hoặc thực vật chỉ sống 1 ngày)',
     meaning_vi: 'phù du, ngắn ngủi, sớm nở tối tàn',
     definition_en: 'Lasting for a very short time; transitory.',
     why: 'Đi cùng ngữ cảnh "viral trends on social media" chỉ sự nổi tiếng chớp nhoáng trên không gian mạng.',
@@ -43,6 +44,7 @@ const INITIAL_ACADEMIC_CARDS: Flashcard[] = [
     pos: 'noun',
     ipa: '/ˈpær.ə.daɪm/',
     audio_url: 'https://api.dictionaryapi.dev/media/pronunciations/en/paradigm-us.mp3',
+    root_meaning: 'Mô hình mẫu, ví dụ tiêu biểu chuẩn mực, hệ thống biến hóa ngữ pháp',
     meaning_vi: 'mô hình mẫu, hệ biến hóa, chuẩn thức lý thuyết',
     definition_en: 'A typical example or pattern of something; a distinct set of concepts or thought patterns.',
     why: 'Bối cảnh so sánh các khung lý thuyết (theoretical framework) trong ngôn ngữ học tri nhận.',
@@ -67,6 +69,7 @@ const INITIAL_ACADEMIC_CARDS: Flashcard[] = [
     pos: 'noun',
     ipa: '/ˈnjuː.ɑːns/',
     audio_url: 'https://api.dictionaryapi.dev/media/pronunciations/en/nuance-us.mp3',
+    root_meaning: 'Sắc thái tinh tế, bóng màu, sự khác biệt nhỏ về cảm giác hoặc âm thanh',
     meaning_vi: 'sắc thái tinh tế (về ngữ nghĩa hoặc cảm xúc)',
     definition_en: 'A subtle distinction in or shade of meaning, sound, or expression.',
     why: 'Bổ nghĩa cho động từ "discern" khi phân tích sự khác nhau giữa văn phong học thuật và giao tiếp thông thường.',
@@ -91,6 +94,7 @@ const INITIAL_ACADEMIC_CARDS: Flashcard[] = [
     pos: 'adjective',
     ipa: '/juːˈbɪk.wə.təs/',
     audio_url: 'https://api.dictionaryapi.dev/media/pronunciations/en/ubiquitous-us.mp3',
+    root_meaning: 'Hiện diện ở khắp mọi nơi cùng một lúc (gốc từ tiếng Latin ubique)',
     meaning_vi: 'phổ biến khắp nơi, nhan nhản, hiện diện ở mọi chốn',
     definition_en: 'Present, appearing, or found everywhere simultaneously.',
     why: 'Nhấn mạnh sự phủ sóng toàn diện của các thiết bị thông minh trong đời sống hiện đại.',
@@ -115,6 +119,7 @@ const INITIAL_ACADEMIC_CARDS: Flashcard[] = [
     pos: 'adjective',
     ipa: '/præɡˈmæt.ɪk/',
     audio_url: 'https://api.dictionaryapi.dev/media/pronunciations/en/pragmatic-us.mp3',
+    root_meaning: 'Căn cứ vào hành động thực tiễn, thực dụng (gốc tiếng Hy Lạp pragma = hành động/việc làm)',
     meaning_vi: 'thực dụng, thực tế, dựa trên kinh nghiệm thực tiễn',
     definition_en: 'Dealing with things sensibly and realistically in a way that is based on practical rather than theoretical considerations.',
     why: 'Đối lập với "purely idealistic proposals" trong nghị trường.',
@@ -186,7 +191,17 @@ export async function getCards(userId?: string): Promise<Flashcard[]> {
     try {
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        // Enrich any card missing root_meaning from seed if matching
+        const enriched = parsed.map((card: Flashcard) => {
+          if (!card.root_meaning) {
+            const seed = INITIAL_ACADEMIC_CARDS.find((s) => s.headword.toLowerCase() === card.headword.toLowerCase());
+            if (seed?.root_meaning) {
+              return { ...card, root_meaning: seed.root_meaning };
+            }
+          }
+          return card;
+        });
+        return enriched;
       }
     } catch {
       // ignore

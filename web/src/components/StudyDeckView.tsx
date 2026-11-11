@@ -160,6 +160,18 @@ export const StudyDeckView: React.FC<StudyDeckViewProps> = ({
         <div className="my-auto py-4 sm:py-6 space-y-3 sm:space-y-4">
           {renderClozeSentence()}
 
+          {!isFlipped && (
+            <div className="pt-2 animate-fadeIn">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-container/80 border border-outline-hairline text-xs text-on-surface-muted">
+                <HelpCircle className="w-3.5 h-3.5 text-primary stroke-[1.5] shrink-0" />
+                <span>
+                  <strong className="text-on-surface font-medium">Gợi ý nghĩa gốc: </strong>
+                  {currentCard.root_meaning || currentCard.definition_en || currentCard.meaning_vi}
+                </span>
+              </div>
+            </div>
+          )}
+
           {isFlipped && (
             <div className="pt-3 sm:pt-4 border-t border-outline-hairline space-y-2.5 sm:space-y-3 animate-fadeIn">
               <div className="flex flex-wrap items-baseline gap-2">
@@ -188,19 +200,35 @@ export const StudyDeckView: React.FC<StudyDeckViewProps> = ({
                 </button>
               </div>
 
-              {/* Meaning in context */}
-              <div className="bg-surface-container/60 p-2.5 sm:p-3 rounded-lg border border-outline-hairline">
-                <span className="text-[11px] font-sans text-on-surface-muted block font-medium">
-                  Nghĩa trong ngữ cảnh:
-                </span>
-                <p className="font-sans font-semibold text-sm sm:text-base text-on-surface mt-0.5">
-                  {currentCard.meaning_vi}
-                </p>
-                {currentCard.definition_en && (
-                  <p className="text-[11px] sm:text-xs text-on-surface-muted font-sans mt-0.5 italic">
-                    "{currentCard.definition_en}"
+              {/* Meaning comparison grid: Nghĩa gốc vs Nghĩa trong ngữ cảnh */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* 1. Nghĩa gốc */}
+                <div className="bg-surface-container/60 p-2.5 sm:p-3 rounded-lg border border-outline-hairline space-y-1">
+                  <span className="text-[10px] sm:text-[11px] font-sans text-secondary font-bold uppercase tracking-wider block">
+                    📖 Nghĩa gốc (Từ điển):
+                  </span>
+                  <p className="font-sans font-medium text-xs sm:text-sm text-on-surface leading-snug">
+                    {currentCard.root_meaning || currentCard.definition_en || 'Nghĩa phổ thông của từ.'}
                   </p>
-                )}
+                  {currentCard.definition_en && currentCard.root_meaning && (
+                    <p className="text-[11px] text-on-surface-muted font-sans italic leading-snug">
+                      "{currentCard.definition_en}"
+                    </p>
+                  )}
+                </div>
+
+                {/* 2. Nghĩa trong ngữ cảnh */}
+                <div className="bg-primary-tint/15 p-2.5 sm:p-3 rounded-lg border border-primary/25 space-y-1">
+                  <span className="text-[10px] sm:text-[11px] font-sans text-primary font-bold uppercase tracking-wider block">
+                    🎯 Nghĩa trong ngữ cảnh:
+                  </span>
+                  <p className="font-sans font-bold text-xs sm:text-sm text-primary leading-snug">
+                    {currentCard.meaning_vi}
+                  </p>
+                  <span className="text-[10px] text-on-surface-muted block">
+                    (Áp dụng chuẩn xác trong bài đọc này)
+                  </span>
+                </div>
               </div>
 
               {/* Context Clue: Why */}
@@ -211,6 +239,21 @@ export const StudyDeckView: React.FC<StudyDeckViewProps> = ({
                     <strong className="text-primary font-medium">Vì sao nghĩa này: </strong>
                     {currentCard.why}
                   </p>
+                </div>
+              )}
+
+              {/* Collocations */}
+              {currentCard.collocations && currentCard.collocations.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 text-xs text-on-surface-muted pt-0.5">
+                  <span className="font-mono text-[10px] text-secondary uppercase font-semibold">Cụm hay gặp:</span>
+                  {currentCard.collocations.map((col, idx) => (
+                    <span
+                      key={idx}
+                      className="px-2 py-0.5 rounded bg-surface-container border border-outline-hairline text-[11px] font-sans"
+                    >
+                      {col}
+                    </span>
+                  ))}
                 </div>
               )}
 
