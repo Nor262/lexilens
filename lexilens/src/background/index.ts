@@ -37,7 +37,41 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 // Update badge on extension launch
 updateExtensionBadge();
 
-// Setup Context Menu for right-click text selection
+// Helper to trigger crop on a tab, auto-injecting content script if missing
+async function triggerCropOnTab(tabId: number, url?: string) {
+  if (url?.startsWith('chrome://') || url?.startsWith('chrome-extension://')) {
+    return;
+  }
+
+  chrome.tabs.sendMessage(tabId, { type: 'TRIGGER_SCREEN_CROP' }, () => {
+    if (chrome.runtime.lastError) {
+      // Content script not ready on this tab, inject dynamically
+      chrome.scripting.executeScript(
+        {
+          target: { tabId },
+          files: ['content.js'],
+        },
+        () => {
+          if (!chrome.runtime.lastError) {
+            chrome.scripting.insertCSS(
+              {
+                target: { tabId },
+                files: ['content.css'],
+              },
+              () => {
+                setTimeout(() => {
+                  chrome.tabs.sendMessage(tabId, { type: 'TRIGGER_SCREEN_CROP' });
+                }, 80);
+              }
+            );
+          }
+        }
+      );
+    }
+  });
+}
+
+// Setup Context Menu for right-click text selection & OCR
 function setupContextMenu() {
   try {
     chrome.contextMenus.removeAll(() => {
@@ -45,6 +79,11 @@ function setupContextMenu() {
         id: 'lexilens-translate-sidepanel',
         title: 'Dịch bằng LexiLens: "%s"',
         contexts: ['selection'],
+      });
+      chrome.contextMenus.create({
+        id: 'lexilens-crop-ocr',
+        title: 'Chụp vùng & Nhận diện chữ (LexiLens Lens)...',
+        contexts: ['page', 'image', 'video'],
       });
     });
   } catch (err) {
@@ -60,8 +99,13 @@ chrome.runtime.onStartup.addListener(() => {
   setupContextMenu();
 });
 
-// Context Menu Click Handler -> Opens Sidepanel and triggers translation
+// Context Menu Click Handler -> Opens Sidepanel or triggers OCR
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId === 'lexilens-crop-ocr' && tab?.id) {
+    triggerCropOnTab(tab.id, tab.url);
+    return;
+  }
+
   if (info.menuItemId === 'lexilens-translate-sidepanel' && info.selectionText) {
     const selectedText = info.selectionText.trim();
     if (!selectedText) return;
@@ -106,7 +150,7 @@ chrome.commands.onCommand.addListener(async (command) => {
   if (command === 'capture_screen') {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab?.id) {
-      chrome.tabs.sendMessage(tab.id, { type: 'TRIGGER_SCREEN_CROP' });
+      triggerCropOnTab(tab.id, tab.url);
     }
   }
 });

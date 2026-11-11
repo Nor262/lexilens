@@ -93,10 +93,44 @@ const PopupApp: React.FC = () => {
 
   const triggerCapture = async () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id) {
-      chrome.tabs.sendMessage(tab.id, { type: 'TRIGGER_SCREEN_CROP' });
+    if (!tab?.id) return;
+
+    if (tab.url?.startsWith('chrome://') || tab.url?.startsWith('chrome-extension://')) {
+      alert('Không thể kích hoạt tính năng chụp ảnh trên trang hệ thống nội bộ của trình duyệt. Vui lòng thử trên một bài báo hoặc trang web thông thường.');
+      return;
     }
-    window.close();
+
+    // Try sending message directly, fallback to dynamic script injection if tab was opened before extension reload
+    chrome.tabs.sendMessage(tab.id, { type: 'TRIGGER_SCREEN_CROP' }, () => {
+      if (chrome.runtime.lastError) {
+        chrome.scripting.executeScript(
+          {
+            target: { tabId: tab.id! },
+            files: ['content.js'],
+          },
+          () => {
+            if (chrome.runtime.lastError) {
+              alert('Không thể kích hoạt OCR trên tab này: ' + chrome.runtime.lastError.message);
+              return;
+            }
+            chrome.scripting.insertCSS(
+              {
+                target: { tabId: tab.id! },
+                files: ['content.css'],
+              },
+              () => {
+                setTimeout(() => {
+                  chrome.tabs.sendMessage(tab.id!, { type: 'TRIGGER_SCREEN_CROP' });
+                  window.close();
+                }, 80);
+              }
+            );
+          }
+        );
+      } else {
+        window.close();
+      }
+    });
   };
 
   const playSpeech = (text: string, audioUrl?: string) => {

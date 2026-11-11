@@ -31,11 +31,12 @@ export const InstallExtensionModal: React.FC<InstallExtensionModalProps> = ({
   };
 
   const handleDownload = () => {
-    if (downloadUrl) {
-      window.open(downloadUrl, '_blank');
-    } else {
-      alert('Đường link tải file zip đang được cập nhật. Bạn sẽ có thể tải về ngay khi có link chính thức!');
-    }
+    const link = document.createElement('a');
+    link.href = '/lexilens-chrome-extension.zip';
+    link.download = 'lexilens-chrome-extension.zip';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const steps = [
@@ -142,15 +143,27 @@ export const InstallExtensionModal: React.FC<InstallExtensionModalProps> = ({
                   </p>
                 </div>
 
-                <motion.button
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={handleDownload}
-                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs sm:text-sm font-sans font-semibold transition-all shadow-sm shrink-0 cursor-pointer"
-                >
-                  <Download className="w-4 h-4 stroke-[2]" />
-                  <span>Tải file Extension</span>
-                </motion.button>
+                <div className="flex flex-col sm:flex-row items-center gap-2">
+                  <motion.button
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={handleDownload}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs sm:text-sm font-sans font-semibold transition-all shadow-sm shrink-0 cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 stroke-[2]" />
+                    <span>Tải file Extension (.zip)</span>
+                  </motion.button>
+                  {downloadUrl && (
+                    <a
+                      href={downloadUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] text-primary hover:underline text-center sm:text-left px-1 py-1"
+                    >
+                      (hoặc GitHub Releases)
+                    </a>
+                  )}
+                </div>
               </div>
 
               {/* Step-by-Step Instructions */}
