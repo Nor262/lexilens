@@ -19,10 +19,12 @@ const OptionsApp: React.FC = () => {
   const [testStatus, setTestStatus] = useState<string | null>(null);
   const [testing, setTesting] = useState<boolean>(false);
   const [modelOptions, setModelOptions] = useState<string[]>([
+    'gemini-3.0-flash',
     'gemini-2.5-flash',
     'gemini-1.5-flash',
     'gemini-1.5-flash-latest',
     'gemini-1.5-flash-8b',
+    'gemini-3.0-pro',
     'gemini-2.5-pro',
     'gemini-1.5-pro',
   ]);
@@ -70,18 +72,9 @@ const OptionsApp: React.FC = () => {
 
       // 1. Dynamic discovery via ListModels
       const discovered = await fetchAvailableModels(apiKey);
-      let chosenModel = settings.preferredModel || 'gemini-2.5-flash';
-      let apiVersion = 'v1beta';
-
       if (discovered.length > 0) {
         const discoveredNames = discovered.map((d) => d.name);
         setModelOptions((prev) => Array.from(new Set([...discoveredNames, ...prev])));
-
-        const best = pickBestModel(discovered);
-        if (best) {
-          chosenModel = best.name;
-          apiVersion = best.apiVersion;
-        }
       }
 
       // 2. Perform test ping generateContent
@@ -96,43 +89,74 @@ const OptionsApp: React.FC = () => {
         });
       };
 
-      let res = await testPing(chosenModel, apiVersion);
+      // Collect all candidate models to test
+      const candidateList: { m: string; v: string }[] = [];
 
-      // If 404, fallback test candidate list
-      if (!res.ok && res.status === 404) {
-        const fallbacks = [
-          { m: 'gemini-2.5-flash', v: 'v1beta' },
-          { m: 'gemini-2.5-flash', v: 'v1' },
-          { m: 'gemini-1.5-flash', v: 'v1' },
-          { m: 'gemini-1.5-flash', v: 'v1beta' },
-          { m: 'gemini-1.5-flash-8b', v: 'v1beta' },
-          { m: 'gemini-1.5-pro', v: 'v1beta' },
-        ];
+      if (settings.preferredModel) {
+        candidateList.push({ m: settings.preferredModel, v: 'v1beta' });
+        candidateList.push({ m: settings.preferredModel, v: 'v1' });
+      }
 
-        for (const fb of fallbacks) {
-          const testRes = await testPing(fb.m, fb.v);
-          if (testRes.ok) {
-            res = testRes;
-            chosenModel = fb.m;
-            break;
+      for (const d of discovered) {
+        if (!candidateList.some((c) => c.m === d.name && c.v === d.apiVersion)) {
+          candidateList.push({ m: d.name, v: d.apiVersion });
+        }
+      }
+
+      const knownFallbacks = [
+        'gemini-3.0-flash',
+        'gemini-3-flash',
+        'gemini-2.5-flash',
+        'gemini-2.0-flash',
+        'gemini-1.5-flash-latest',
+        'gemini-1.5-flash',
+        'gemini-1.5-flash-8b',
+        'gemini-3.0-pro',
+        'gemini-2.5-pro',
+        'gemini-1.5-pro',
+      ];
+
+      for (const name of knownFallbacks) {
+        for (const v of ['v1beta', 'v1']) {
+          if (!candidateList.some((c) => c.m === name && c.v === v)) {
+            candidateList.push({ m: name, v });
           }
+        }
+      }
+
+      let workingModel: string | null = null;
+      let lastErr = '';
+
+      for (const cand of candidateList) {
+        try {
+          const testRes = await testPing(cand.m, cand.v);
+          if (testRes.ok) {
+            workingModel = cand.m;
+            break;
+          } else {
+            lastErr = await testRes.text();
+            if (testRes.status === 400 && lastErr.includes('API_KEY_INVALID')) {
+              throw new Error('API Key Gemini không hợp lệ. Vui lòng kiểm tra lại!');
+            }
+          }
+        } catch (err: any) {
+          if (err.message?.includes('API Key Gemini không hợp lệ')) throw err;
         }
       }
 
       const elapsed = Math.round(performance.now() - startTime);
 
-      if (res.ok) {
-        const newSettings = { ...settings, preferredModel: chosenModel };
+      if (workingModel) {
+        const newSettings = { ...settings, preferredModel: workingModel };
         setSettings(newSettings);
-        setTestStatus(`✅ Kết nối thành công! Đã tự động kích hoạt model "${chosenModel}" (Phản hồi: ${elapsed}ms). Đã tự động lưu cấu hình!`);
-        // Auto-save setting
+        setModelOptions((prev) => Array.from(new Set([workingModel!, ...prev])));
+        setTestStatus(`✅ Kết nối thành công! Đã tự động kích hoạt model "${workingModel}" (Phản hồi: ${elapsed}ms). Đã tự động lưu cấu hình!`);
         chrome.runtime.sendMessage({
           type: 'SAVE_SETTINGS',
           payload: newSettings,
         });
       } else {
-        const err = await res.text();
-        setTestStatus(`❌ Lỗi kết nối (${res.status}): ${err}`);
+        setTestStatus(`❌ Lỗi kết nối: ${lastErr}`);
       }
     } catch (e: any) {
       setTestStatus(`❌ Lỗi kiểm tra: ${e.message}`);
