@@ -93,21 +93,24 @@ export function pickBestModel(models: AvailableModel[]): AvailableModel | null {
 async function callGemini(apiKey: string, model: string, contents: any[]): Promise<string> {
   const candidateModels: { name: string; apiVersion: 'v1beta' | 'v1' }[] = [];
 
-  if (model) {
+  // Always prioritize gemini-2.5-flash first as Google now requires for all new keys
+  candidateModels.push({ name: 'gemini-2.5-flash', apiVersion: 'v1beta' });
+  candidateModels.push({ name: 'gemini-2.5-flash', apiVersion: 'v1' });
+
+  if (model && model !== 'gemini-2.5-flash') {
     candidateModels.push({ name: model, apiVersion: 'v1beta' });
     candidateModels.push({ name: model, apiVersion: 'v1' });
   }
 
   const fallbackNames = [
-    'gemini-3.0-flash',
-    'gemini-3-flash',
     'gemini-2.5-flash',
+    'gemini-2.5-pro',
+    'gemini-3.0-flash',
     'gemini-2.0-flash',
     'gemini-1.5-flash-latest',
     'gemini-1.5-flash',
     'gemini-1.5-flash-8b',
     'gemini-3.0-pro',
-    'gemini-2.5-pro',
     'gemini-1.5-pro',
   ];
 

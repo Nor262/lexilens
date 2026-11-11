@@ -1,6 +1,16 @@
 import { ExtensionMessage, Flashcard, WordLookupResult } from '../types';
 import { lookupFreeDictionary } from '../services/dictionary';
 import { lookupWordWithGemini, analyzeSentenceWithGemini, ocrImageWithGemini } from '../services/gemini';
+import { quickTranslateText } from '../services/quickTranslate';
+import {
+  getExtensionUser,
+  signInExtension,
+  signUpExtension,
+  signOutExtension,
+  tryAutoSyncFromWebTab,
+  syncCardToCloud,
+  fetchCardsFromCloud,
+} from '../services/supabase';
 import {
   getSettings,
   saveSettings,
@@ -108,6 +118,51 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
       const settings = await getSettings();
 
       switch (message.type) {
+        // ================= AUTH HANDLERS =================
+        case 'GET_USER': {
+          let user = await getExtensionUser();
+          if (!user) {
+            user = await tryAutoSyncFromWebTab();
+          }
+          sendResponse({ success: true, data: user });
+          break;
+        }
+
+        case 'SIGN_IN': {
+          const { email, password } = message.payload;
+          const { data, error } = await signInExtension(email, password);
+          if (error) {
+            sendResponse({ success: false, error: error.message });
+          } else {
+            sendResponse({ success: true, data: data.user });
+          }
+          break;
+        }
+
+        case 'SIGN_UP': {
+          const { email, password } = message.payload;
+          const { data, error } = await signUpExtension(email, password);
+          if (error) {
+            sendResponse({ success: false, error: error.message });
+          } else {
+            sendResponse({ success: true, data: data.user });
+          }
+          break;
+        }
+
+        case 'SIGN_OUT': {
+          await signOutExtension();
+          sendResponse({ success: true });
+          break;
+        }
+
+        case 'TRY_AUTO_SYNC_AUTH': {
+          const user = await tryAutoSyncFromWebTab();
+          sendResponse({ success: !!user, data: user });
+          break;
+        }
+
+        // ================= SETTINGS HANDLERS =================
         case 'GET_SETTINGS': {
           sendResponse({ success: true, data: settings });
           break;
@@ -119,6 +174,51 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
           break;
         }
 
+        // ================= STEP 1: ULTRA-FAST TRANSLATE (<150ms) =================
+        case 'QUICK_LOOKUP': {
+          const { text } = message.payload;
+          const cleanText = (text || '').trim();
+          if (!cleanText) {
+            sendResponse({ success: false, error: 'Vui lòng cung cấp văn bản cần tra.' });
+            return;
+          }
+
+          const isSentence = cleanText.split(/\s+/).length > 5;
+
+          if (isSentence) {
+            const quickVi = await quickTranslateText(cleanText);
+            sendResponse({
+              success: true,
+              data: {
+                isSentence: true,
+                translation_vi: quickVi || 'Đang dịch...',
+              },
+            });
+          } else {
+            // Run Google Translate and Free Dictionary in parallel
+            const [quickVi, dictInfo] = await Promise.all([
+              quickTranslateText(cleanText),
+              lookupFreeDictionary(cleanText).catch(() => null),
+            ]);
+
+            sendResponse({
+              success: true,
+              data: {
+                isSentence: false,
+                headword: cleanText,
+                pos: dictInfo?.pos || 'word',
+                ipa: dictInfo?.ipa || '',
+                meaning_vi: quickVi || '',
+                definition_en: dictInfo?.definitions?.[0] || '',
+                audio_url: dictInfo?.audioUrl,
+              },
+            });
+          }
+          break;
+        }
+
+        // ================= STEP 2: DEEP AI CONTEXT ANALYSIS (Gemini) =================
+        case 'ANALYZE_WORD_CONTEXT':
         case 'LOOKUP_WORD': {
           const { selection, sentence, pageTitle, topic } = message.payload;
           const cacheKey = generateCacheKey('word', selection, sentence, topic);
@@ -133,20 +233,20 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
           if (!settings.geminiApiKey) {
             sendResponse({
               success: false,
-              error: 'Chưa cấu hình Gemini API Key. Vui lòng bấm vào icon LexiLens hoặc mở Cài đặt để nhập Key miễn phí.',
+              error: 'Chưa cấu hình Gemini API Key. Vui lòng mở Cài đặt LexiLens để nhập Key miễn phí.',
             });
             return;
           }
 
-          // 1. Try Free Dictionary API first (for standard IPA & authentic audio MP3)
+          // Fetch dictionary IPA if not already available
           let dictInfo = null;
           try {
             dictInfo = await lookupFreeDictionary(selection);
           } catch (e) {
-            console.warn('[LexiLens] Dictionary lookup failed, falling back to pure Gemini:', e);
+            console.warn('[LexiLens] Dictionary lookup failed:', e);
           }
 
-          // 2. Call Gemini for in-context analysis & "why this meaning"
+          // Call Gemini for in-context analysis & "why this meaning"
           const result = await lookupWordWithGemini(
             settings.geminiApiKey,
             settings.preferredModel,
@@ -157,18 +257,16 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
             dictInfo?.ipa
           );
 
-          // Attach verified audio URL from dictionary if present
           if (dictInfo?.audioUrl) {
             result.audio_url = dictInfo.audioUrl;
           }
 
-          // Save to cache
           await setCachedLookup(cacheKey, result);
-
           sendResponse({ success: true, data: result });
           break;
         }
 
+        case 'ANALYZE_SENTENCE_CONTEXT':
         case 'ANALYZE_SENTENCE': {
           const { sentence } = message.payload;
           const cacheKey = generateCacheKey('sentence', sentence, '', '');
@@ -224,18 +322,37 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
           break;
         }
 
+        // ================= SAVE FLASHCARD (ENFORCE AUTH & SYNC TO CLOUD) =================
         case 'SAVE_FLASHCARD': {
           const rawCard = message.payload;
+          let user = await getExtensionUser();
+          if (!user) {
+            user = await tryAutoSyncFromWebTab();
+          }
+
+          if (!user) {
+            sendResponse({
+              success: false,
+              requireAuth: true,
+              error: 'Vui lòng đăng nhập tài khoản LexiLens để lưu từ vựng và đồng bộ sang Web App!',
+            });
+            return;
+          }
+
           const newCard: Flashcard = {
             id: `card_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            user_id: user.id,
             headword: rawCard.headword,
             pos: rawCard.pos || 'word',
             ipa: rawCard.ipa || '',
             meaning_vi: rawCard.meaning_vi,
+            root_meaning: rawCard.root_meaning || '',
             definition_en: rawCard.definition_en || '',
             why: rawCard.why || '',
+            collocations: rawCard.collocations || [],
+            simplified_sentence: rawCard.simplified_sentence || '',
             sentence: rawCard.sentence,
-            article_title: rawCard.article_title || 'Tài liệu',
+            article_title: rawCard.article_title || 'Tài liệu tra cứu',
             article_url: rawCard.article_url || '',
             topic: rawCard.topic || 'Chung',
             image_crop: rawCard.image_crop,
@@ -244,14 +361,64 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
             fsrs: createNewFsrsState(),
           };
 
+          // 1. Save to local storage for instant offline access
           const saveResult = await saveFlashcard(newCard);
-          sendResponse({ success: true, data: saveResult });
+
+          // 2. Sync to Supabase cloud database
+          const cloudSynced = await syncCardToCloud(newCard, user.id);
+
+          sendResponse({
+            success: true,
+            syncedToCloud: cloudSynced,
+            data: saveResult,
+          });
           break;
         }
 
         case 'GET_CARDS': {
-          const cards = await getFlashcards();
-          sendResponse({ success: true, data: cards });
+          let user = await getExtensionUser();
+          if (!user) {
+            user = await tryAutoSyncFromWebTab();
+          }
+
+          // If logged in, fetch from cloud
+          if (user) {
+            const cloudCards = await fetchCardsFromCloud(user.id);
+            if (cloudCards && cloudCards.length > 0) {
+              // Convert cloud cards to extension format
+              const formatted: Flashcard[] = cloudCards.map((c: any) => ({
+                id: c.id,
+                user_id: c.user_id,
+                headword: c.headword,
+                pos: c.pos || 'word',
+                ipa: c.ipa || '',
+                meaning_vi: c.meaning_vi,
+                root_meaning: c.root_meaning || '',
+                definition_en: c.definition_en || '',
+                why: c.why || '',
+                sentence: c.sentence || '',
+                article_title: c.source_article_title || 'Tài liệu',
+                article_url: c.source_article_url || '',
+                topic: c.topic_id || 'Chung',
+                audio_url: c.audio_url,
+                created_at: new Date(c.created_at).getTime(),
+                fsrs: {
+                  due: c.due,
+                  stability: c.stability,
+                  difficulty: c.difficulty,
+                  reps: c.reps,
+                  lapses: c.lapses,
+                  state: c.state,
+                },
+              }));
+              sendResponse({ success: true, data: formatted });
+              return;
+            }
+          }
+
+          // Fallback to local storage
+          const localCards = await getFlashcards();
+          sendResponse({ success: true, data: localCards });
           break;
         }
 
@@ -266,6 +433,13 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
 
           const { updatedCard, scheduledDays } = reviewFsrsCard(target, rating);
           await updateFlashcard(updatedCard);
+
+          // If logged in, also sync updated review to cloud
+          const user = await getExtensionUser();
+          if (user) {
+            syncCardToCloud(updatedCard, user.id);
+          }
+
           sendResponse({ success: true, data: { updatedCard, scheduledDays } });
           break;
         }

@@ -9,11 +9,14 @@
     "scripting",
     "alarms",
     "sidePanel",
-    "contextMenus"
+    "contextMenus",
+    "cookies"
   ],
   "host_permissions": [
     "https://generativelanguage.googleapis.com/*",
     "https://api.dictionaryapi.dev/*",
+    "https://translate.googleapis.com/*",
+    "https://*.supabase.co/*",
     "<all_urls>"
   ],
   "background": {

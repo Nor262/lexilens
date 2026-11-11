@@ -10,7 +10,18 @@ export interface WordLookupResult {
   collocations: string[];
   detected_topic: string;
   audio_url?: string;
-  source: 'dictionary+gemini' | 'gemini_fallback';
+  source: 'dictionary+gemini' | 'gemini_fallback' | 'quick+gemini';
+}
+
+export interface QuickLookupResult {
+  isSentence: boolean;
+  headword?: string;
+  pos?: string;
+  ipa?: string;
+  meaning_vi: string;
+  definition_en?: string;
+  audio_url?: string;
+  translation_vi?: string;
 }
 
 export interface ClauseBreakdown {
@@ -36,6 +47,7 @@ export interface OCRResult {
 
 export interface Flashcard {
   id: string;
+  user_id?: string;
   headword: string;
   pos: string;
   ipa: string;
@@ -47,7 +59,9 @@ export interface Flashcard {
   article_title: string;
   article_url: string;
   topic: string;
-  image_crop?: string; // base64 thumbnail if captured from OCR
+  collocations?: string[];
+  simplified_sentence?: string;
+  image_crop?: string;
   audio_url?: string;
   created_at: number;
   fsrs: {
@@ -73,6 +87,9 @@ export interface UserSettings {
 
 export interface ExtensionMessage {
   type: 
+    | 'QUICK_LOOKUP'
+    | 'ANALYZE_WORD_CONTEXT'
+    | 'ANALYZE_SENTENCE_CONTEXT'
     | 'LOOKUP_WORD'
     | 'ANALYZE_SENTENCE'
     | 'PERFORM_OCR'
@@ -81,6 +98,12 @@ export interface ExtensionMessage {
     | 'UPDATE_CARD_FSRS'
     | 'GET_SETTINGS'
     | 'SAVE_SETTINGS'
-    | 'CAPTURE_VISIBLE_TAB';
+    | 'CAPTURE_VISIBLE_TAB'
+    | 'GET_USER'
+    | 'SIGN_IN'
+    | 'SIGN_UP'
+    | 'SIGN_OUT'
+    | 'TRY_AUTO_SYNC_AUTH'
+    | 'SYNC_CARDS_FROM_CLOUD';
   payload?: any;
 }

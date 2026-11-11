@@ -89,30 +89,35 @@ const OptionsApp: React.FC = () => {
         });
       };
 
-      // Collect all candidate models to test
+      // Collect all candidate models to test (prioritize 2.5-flash)
       const candidateList: { m: string; v: string }[] = [];
 
-      if (settings.preferredModel) {
-        candidateList.push({ m: settings.preferredModel, v: 'v1beta' });
-        candidateList.push({ m: settings.preferredModel, v: 'v1' });
-      }
+      // 1. First priority: Google's recommended gemini-2.5-flash
+      candidateList.push({ m: 'gemini-2.5-flash', v: 'v1beta' });
+      candidateList.push({ m: 'gemini-2.5-flash', v: 'v1' });
 
+      // 2. Discovered models from ListModels
       for (const d of discovered) {
         if (!candidateList.some((c) => c.m === d.name && c.v === d.apiVersion)) {
           candidateList.push({ m: d.name, v: d.apiVersion });
         }
       }
 
+      // 3. User preferred model if different
+      if (settings.preferredModel && settings.preferredModel !== 'gemini-2.5-flash') {
+        candidateList.push({ m: settings.preferredModel, v: 'v1beta' });
+        candidateList.push({ m: settings.preferredModel, v: 'v1' });
+      }
+
       const knownFallbacks = [
-        'gemini-3.0-flash',
-        'gemini-3-flash',
         'gemini-2.5-flash',
+        'gemini-2.5-pro',
+        'gemini-3.0-flash',
         'gemini-2.0-flash',
         'gemini-1.5-flash-latest',
         'gemini-1.5-flash',
         'gemini-1.5-flash-8b',
         'gemini-3.0-pro',
-        'gemini-2.5-pro',
         'gemini-1.5-pro',
       ];
 

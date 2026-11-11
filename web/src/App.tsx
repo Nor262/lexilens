@@ -73,8 +73,33 @@ export const App: React.FC = () => {
       setAuthLoading(false);
     });
 
+    // Auto-refresh when tab receives focus (e.g. user just saved a card in extension and switches to web)
+    const handleFocus = () => {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user?.id) {
+          loadAllData(session.user.id);
+        }
+      });
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // Listen to direct broadcast/extension events
+    // @ts-ignore
+    if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
+      const extensionMsgListener = (msg: any) => {
+        if (msg?.type === 'CARD_SAVED_FROM_EXTENSION') {
+          supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session?.user?.id) loadAllData(session.user.id);
+          });
+        }
+      };
+      // @ts-ignore
+      chrome.runtime.onMessage.addListener(extensionMsgListener);
+    }
+
     return () => {
       subscription.unsubscribe();
+      window.removeEventListener('focus', handleFocus);
     };
   }, []);
 

@@ -34,8 +34,11 @@ export const SidepanelApp: React.FC = () => {
   const [wordData, setWordData] = useState<WordLookupResult | null>(null);
   const [syntaxData, setSyntaxData] = useState<SentenceAnalysisResult | null>(null);
   const [translating, setTranslating] = useState<boolean>(false);
+  const [aiAnalyzing, setAiAnalyzing] = useState<boolean>(false);
   const [translateError, setTranslateError] = useState<string | null>(null);
   const [cardSaved, setCardSaved] = useState<boolean>(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
 
   const loadCards = async () => {
     try {
@@ -51,7 +54,20 @@ export const SidepanelApp: React.FC = () => {
   useEffect(() => {
     loadCards();
 
-    // 1. Check if there is an active lookup triggered from Context Menu
+    // 1. Check user login
+    chrome.runtime.sendMessage({ type: 'GET_USER' }, (res) => {
+      if (res?.success && res.data?.user) {
+        setCurrentUser(res.data.user);
+      } else {
+        chrome.runtime.sendMessage({ type: 'TRY_AUTO_SYNC_AUTH' }, (sRes) => {
+          if (sRes?.success && sRes.data?.user) {
+            setCurrentUser(sRes.data.user);
+          }
+        });
+      }
+    });
+
+    // 2. Check if there is an active lookup triggered from Context Menu
     chrome.storage.local.get(['lexilens_active_lookup'], (result) => {
       if (result?.lexilens_active_lookup?.text) {
         const item = result.lexilens_active_lookup;
@@ -60,7 +76,7 @@ export const SidepanelApp: React.FC = () => {
       }
     });
 
-    // 2. Listen to direct runtime message from background
+    // 3. Listen to direct runtime message from background
     const messageListener = (msg: any) => {
       if (msg.type === 'SIDEPANEL_TRIGGER_LOOKUP' && msg.payload?.text) {
         handleExecuteTranslate(msg.payload.text, msg.payload.pageTitle, msg.payload.pageUrl);
@@ -80,26 +96,68 @@ export const SidepanelApp: React.FC = () => {
     setPageUrl(url);
     setActiveTab('translate');
     setTranslating(true);
+    setAiAnalyzing(false);
     setTranslateError(null);
     setWordData(null);
     setSyntaxData(null);
     setCardSaved(false);
+    setAuthNotice(null);
 
+    const isSentence = cleanText.split(/\s+/).length > 5;
+
+    // Phase 1: Fast Instant Translation (<150ms)
     try {
-      const isSentence = cleanText.split(/\s+/).length > 5;
+      const quickRes = await chrome.runtime.sendMessage({
+        type: 'QUICK_LOOKUP',
+        payload: { text: cleanText, sentence: cleanText },
+      });
+
+      if (quickRes?.success && quickRes.data) {
+        if (isSentence) {
+          setSyntaxData({
+            translation_vi: quickRes.data.translation_vi || 'Đang phân tích...',
+            clauses: [],
+            simplified: '',
+            grammar_points: [],
+          });
+        } else {
+          setWordData({
+            headword: quickRes.data.headword || cleanText,
+            pos: quickRes.data.pos || 'word',
+            ipa: quickRes.data.ipa || '',
+            meaning_vi: quickRes.data.meaning_vi || 'Đang tra nghĩa...',
+            definition_en: quickRes.data.definition_en || '',
+            why: '',
+            other_meanings: [],
+            collocations: [],
+            detected_topic: 'Chung',
+            audio_url: quickRes.data.audio_url,
+            source: 'quick+gemini',
+          });
+        }
+        // UI unblocked instantly!
+        setTranslating(false);
+        setAiAnalyzing(true);
+      }
+    } catch (e) {
+      console.warn('[LexiLens] Quick lookup error:', e);
+    }
+
+    // Phase 2: Deep Context AI Analysis (Gemini)
+    try {
       if (isSentence) {
         const res = await chrome.runtime.sendMessage({
-          type: 'ANALYZE_SENTENCE',
+          type: 'ANALYZE_SENTENCE_CONTEXT',
           payload: { sentence: cleanText },
         });
-        if (res?.success) {
+        if (res?.success && res.data) {
           setSyntaxData(res.data);
-        } else {
+        } else if (!syntaxData) {
           setTranslateError(res?.error || 'Không thể phân tích ngữ pháp câu.');
         }
       } else {
         const res = await chrome.runtime.sendMessage({
-          type: 'LOOKUP_WORD',
+          type: 'ANALYZE_WORD_CONTEXT',
           payload: {
             selection: cleanText,
             sentence: cleanText,
@@ -107,21 +165,25 @@ export const SidepanelApp: React.FC = () => {
             topic: 'auto',
           },
         });
-        if (res?.success) {
+        if (res?.success && res.data) {
           setWordData(res.data);
-        } else {
+        } else if (!wordData) {
           setTranslateError(res?.error || 'Lỗi tra cứu từ vựng.');
         }
       }
     } catch (e: any) {
-      setTranslateError(e.message || 'Lỗi kết nối extension.');
+      if (!wordData && !syntaxData) {
+        setTranslateError(e.message || 'Lỗi kết nối extension.');
+      }
     } finally {
       setTranslating(false);
+      setAiAnalyzing(false);
     }
   };
 
   const handleSaveCardFromPanel = async () => {
     if (cardSaved) return;
+    setAuthNotice(null);
 
     try {
       const payload = {
@@ -134,7 +196,7 @@ export const SidepanelApp: React.FC = () => {
         sentence: sourceSentence || inputText,
         article_title: pageTitle || 'Trang web',
         article_url: pageUrl || window.location.href,
-        topic: wordData?.detected_topic || 'auto',
+        topic: wordData?.detected_topic || 'Chung',
         audio_url: wordData?.audio_url,
       };
 
@@ -146,9 +208,13 @@ export const SidepanelApp: React.FC = () => {
       if (res?.success) {
         setCardSaved(true);
         loadCards();
+      } else if (res?.requireAuth) {
+        setAuthNotice('⚠️ Bạn cần đăng nhập tài khoản LexiLens để đồng bộ thẻ sang Web App.');
+      } else {
+        setAuthNotice(res?.error || 'Không thể lưu thẻ.');
       }
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      setAuthNotice(err.message || 'Lỗi lưu thẻ');
     }
   };
 
@@ -242,6 +308,47 @@ export const SidepanelApp: React.FC = () => {
           </button>
         </div>
       </header>
+
+      {/* Account Sync Pill */}
+      <div className="flex items-center justify-between text-[11px] px-3.5 py-1.5 bg-surface-low border-b border-outline-hairline">
+        {currentUser ? (
+          <div className="flex items-center gap-1.5 text-on-surface truncate">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+            <span className="truncate font-mono text-[10px]">{currentUser.email}</span>
+            <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1 rounded ml-1">Đã đồng bộ</span>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between w-full">
+            <span className="text-on-surface-variant text-[10px]">Chưa đăng nhập Web</span>
+            <button
+              onClick={() => {
+                chrome.runtime.sendMessage({ type: 'TRY_AUTO_SYNC_AUTH' }, (sRes) => {
+                  if (sRes?.success && sRes.data?.user) {
+                    setCurrentUser(sRes.data.user);
+                  } else {
+                    window.open('https://lexilens-app.vercel.app', '_blank');
+                  }
+                });
+              }}
+              className="text-primary font-semibold text-[10px] hover:underline cursor-pointer"
+            >
+              Đồng bộ từ Web App
+            </button>
+          </div>
+        )}
+      </div>
+
+      {authNotice && (
+        <div className="mx-4 mt-3 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between">
+          <span className="text-[11px] leading-tight">{authNotice}</span>
+          <button
+            onClick={() => window.open('https://lexilens-app.vercel.app', '_blank')}
+            className="text-primary font-bold underline shrink-0 ml-2 text-xs cursor-pointer"
+          >
+            Đăng nhập
+          </button>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex border-b border-outline-hairline bg-surface text-xs font-medium">
@@ -371,13 +478,27 @@ export const SidepanelApp: React.FC = () => {
 
                 {/* In-Context Meaning */}
                 <div className="p-3 rounded-lg bg-surface-low border border-outline-hairline space-y-1">
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-secondary font-bold">
-                    Nghĩa trong ngữ cảnh câu:
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-secondary font-bold">
+                      Nghĩa trong ngữ cảnh câu:
+                    </span>
+                    {aiAnalyzing && (
+                      <span className="text-[9px] text-primary bg-primary/10 px-1.5 py-0.2 rounded-full font-mono animate-pulse">
+                        AI đang phân tích...
+                      </span>
+                    )}
+                  </div>
                   <p className="font-sans font-bold text-sm text-primary leading-snug">
                     {wordData.meaning_vi}
                   </p>
                 </div>
+
+                {aiAnalyzing && !wordData.why && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs animate-pulse">
+                    <SparklesIcon size={13} className="animate-spin shrink-0" />
+                    <span>Gemini AI đang tìm manh mối ngữ cảnh & cấu trúc chuyên sâu...</span>
+                  </div>
+                )}
 
                 {/* Context Reason (Why this meaning) */}
                 {wordData.why && (
