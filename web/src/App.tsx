@@ -78,6 +78,13 @@ export const App: React.FC = () => {
 
     // Listen to session delivered by Extension
     const extensionAuthListener = async (event: MessageEvent) => {
+      if (event.data?.type === 'LEXILENS_REQUEST_WEB_SESSION') {
+        const { data } = await supabase.auth.getSession();
+        if (data?.session) {
+          broadcastAuth(data.session);
+        }
+      }
+
       if (event.data?.type === 'LEXILENS_EXTENSION_SESSION_RESPONSE' && event.data?.payload) {
         const { access_token, refresh_token, user } = event.data.payload;
         if (access_token && refresh_token) {

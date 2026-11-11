@@ -141,28 +141,58 @@ export async function syncAllLocalCardsToCloud(userId: string): Promise<number> 
   }
 }
 
-export async function setSessionFromTokenData(tokenData: { access_token: string; refresh_token: string }): Promise<any | null> {
+export async function setSessionFromTokenData(tokenData: {
+  access_token?: string;
+  refresh_token?: string;
+  user?: any;
+}): Promise<any | null> {
   try {
-    const { data, error } = await supabase.auth.setSession({
-      access_token: tokenData.access_token,
-      refresh_token: tokenData.refresh_token,
-    });
-    if (!error && data?.user) {
-      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-        await chrome.storage.local.set({
-          lexilens_saved_user: data.user,
-          lexilens_session: {
-            access_token: tokenData.access_token,
-            refresh_token: tokenData.refresh_token,
-          },
-        });
+    const rawUser = tokenData.user || null;
+
+    // Immediately persist so the extension UI reflects user identity without blocking
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      await chrome.storage.local.set({
+        lexilens_saved_user: rawUser,
+        lexilens_session: tokenData.access_token
+          ? {
+              access_token: tokenData.access_token,
+              refresh_token: tokenData.refresh_token || '',
+            }
+          : undefined,
+      });
+    }
+
+    if (tokenData.access_token && tokenData.refresh_token) {
+      const { data, error } = await supabase.auth.setSession({
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token,
+      });
+
+      const activeUser = (!error && data?.user) ? data.user : rawUser;
+      if (activeUser) {
+        if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+          await chrome.storage.local.set({
+            lexilens_saved_user: activeUser,
+            lexilens_session: {
+              access_token: tokenData.access_token,
+              refresh_token: tokenData.refresh_token,
+            },
+          });
+        }
+        if (activeUser.id) {
+          syncAllLocalCardsToCloud(activeUser.id).catch(() => {});
+        }
+        console.log('[LexiLens] Session successfully synced from Web App:', activeUser.email);
+        return activeUser;
       }
-      await syncAllLocalCardsToCloud(data.user.id);
-      console.log('[LexiLens] Session successfully synced from Web App:', data.user.email);
-      return data.user;
+    } else if (rawUser) {
+      return rawUser;
     }
   } catch (err) {
     console.warn('[LexiLens] setSessionFromTokenData error:', err);
+    if (tokenData.user) {
+      return tokenData.user;
+    }
   }
   return null;
 }
@@ -172,35 +202,48 @@ export async function setSessionFromTokenData(tokenData: { access_token: string;
  */
 export async function tryAutoSyncFromWebTab(): Promise<any | null> {
   try {
-    const tabs = await chrome.tabs.query({
-      url: ['https://lexilens-app.vercel.app/*', 'http://localhost:3000/*'],
+    const tabs = await chrome.tabs.query({});
+    const targetTabs = tabs.filter((t) => {
+      const u = t.url || '';
+      return (
+        u.includes('lexilens-app.vercel.app') ||
+        u.includes('localhost:3000') ||
+        u.includes('localhost:5173')
+      );
     });
 
-    for (const tab of tabs) {
+    for (const tab of targetTabs) {
       if (!tab.id) continue;
       try {
         const results = await chrome.scripting.executeScript({
           target: { tabId: tab.id },
           func: () => {
-            for (let i = 0; i < localStorage.length; i++) {
-              const key = localStorage.key(i);
-              if (key && (key.includes('-auth-token') || key.startsWith('sb-'))) {
-                const item = localStorage.getItem(key);
-                if (item) {
-                  try {
-                    return JSON.parse(item);
-                  } catch {
-                    return null;
+            try {
+              for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key.includes('-auth-token') || key.startsWith('sb-'))) {
+                  const item = localStorage.getItem(key);
+                  if (item) {
+                    try {
+                      const parsed = JSON.parse(item);
+                      if (parsed?.access_token || parsed?.user) {
+                        return parsed;
+                      }
+                    } catch {
+                      // continue
+                    }
                   }
                 }
               }
+            } catch {
+              // ignore
             }
             return null;
           },
         });
 
         const tokenData = results?.[0]?.result;
-        if (tokenData?.access_token && tokenData?.refresh_token) {
+        if (tokenData?.access_token || tokenData?.user) {
           const user = await setSessionFromTokenData(tokenData);
           if (user) return user;
         }

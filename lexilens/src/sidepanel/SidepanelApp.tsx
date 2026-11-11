@@ -58,17 +58,23 @@ export const SidepanelApp: React.FC = () => {
     loadCards();
 
     // 1. Check user login
-    chrome.runtime.sendMessage({ type: 'GET_USER' }, (res) => {
-      if (res?.success && res.data?.user) {
-        setCurrentUser(res.data.user);
-      } else {
-        chrome.runtime.sendMessage({ type: 'TRY_AUTO_SYNC_AUTH' }, (sRes) => {
-          if (sRes?.success && sRes.data?.user) {
-            setCurrentUser(sRes.data.user);
-          }
-        });
-      }
-    });
+    const syncUser = () => {
+      chrome.runtime.sendMessage({ type: 'GET_USER' }, (res) => {
+        const u = res?.data?.user || res?.data;
+        if (res?.success && (u?.id || u?.email)) {
+          setCurrentUser(u);
+        } else {
+          chrome.runtime.sendMessage({ type: 'TRY_AUTO_SYNC_AUTH' }, (sRes) => {
+            const su = sRes?.data?.user || sRes?.data;
+            if (sRes?.success && (su?.id || su?.email)) {
+              setCurrentUser(su);
+            }
+          });
+        }
+      });
+    };
+    syncUser();
+    const userInterval = setInterval(syncUser, 2000);
 
     // 2. Check if there is an active lookup triggered from Context Menu
     chrome.storage.local.get(['lexilens_active_lookup'], (result) => {
@@ -86,7 +92,10 @@ export const SidepanelApp: React.FC = () => {
       }
     };
     chrome.runtime.onMessage.addListener(messageListener);
-    return () => chrome.runtime.onMessage.removeListener(messageListener);
+    return () => {
+      chrome.runtime.onMessage.removeListener(messageListener);
+      clearInterval(userInterval);
+    };
   }, []);
 
   const handleExecuteTranslate = async (text: string, title = 'Tài liệu', url = '') => {
@@ -352,7 +361,16 @@ export const SidepanelApp: React.FC = () => {
           <div className="flex items-center justify-between w-full">
             <span className="text-on-surface-variant text-[10px]">Chưa đăng nhập LexiLens</span>
             <button
-              onClick={() => setShowAuthView(true)}
+              onClick={() => {
+                chrome.runtime.sendMessage({ type: 'TRY_AUTO_SYNC_AUTH' }, (sRes) => {
+                  const su = sRes?.data?.user || sRes?.data;
+                  if (sRes?.success && (su?.id || su?.email)) {
+                    setCurrentUser(su);
+                  } else {
+                    setShowAuthView(true);
+                  }
+                });
+              }}
               className="text-primary font-bold text-[10px] hover:underline cursor-pointer bg-primary-tint/30 px-2 py-0.5 rounded border border-primary/20"
             >
               Đăng nhập ngay

@@ -183,10 +183,37 @@ const ContentApp: React.FC = () => {
     };
     window.addEventListener('message', webAuthBridgeListener);
 
-    // When mounting on web app, proactively push extension session if user is logged in
+    // When mounting on web app, proactively synchronize session in both directions
     if (window.location.hostname.includes('lexilens-app.vercel.app') || window.location.hostname === 'localhost') {
+      // 1. Proactively extract Web App session from localStorage if already logged in
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.includes('-auth-token') || key.startsWith('sb-'))) {
+            const item = localStorage.getItem(key);
+            if (item) {
+              const tokenData = JSON.parse(item);
+              if (tokenData?.access_token || tokenData?.user) {
+                chrome.runtime.sendMessage({
+                  type: 'SYNC_SESSION_FROM_PAGE',
+                  payload: tokenData,
+                }).catch(() => {});
+                break;
+              }
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
+
+      // 2. Ask Web App for session via postMessage
+      window.postMessage({ type: 'LEXILENS_REQUEST_WEB_SESSION' }, '*');
+
+      // 3. Proactively push extension session if user was logged in on extension
       chrome.runtime.sendMessage({ type: 'GET_USER' }, (res) => {
-        if (res?.success && res.data) {
+        const u = res?.data?.user || res?.data;
+        if (res?.success && (u?.id || u?.email)) {
           chrome.storage.local.get(['lexilens_session'], (sRes) => {
             if (sRes?.lexilens_session?.access_token) {
               window.postMessage({
@@ -194,7 +221,7 @@ const ContentApp: React.FC = () => {
                 payload: {
                   access_token: sRes.lexilens_session.access_token,
                   refresh_token: sRes.lexilens_session.refresh_token,
-                  user: res.data,
+                  user: u,
                 },
               }, '*');
             }
