@@ -138,15 +138,15 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   };
 
   return (
-    <div className="space-y-3 sm:space-y-4">
+    <div className="space-y-3 sm:space-y-4 w-full max-w-full overflow-hidden">
       {/* Header & Actions */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
-        <div>
+        <div className="min-w-0">
           <h2 className="text-lg sm:text-xl font-serif font-bold text-on-surface">
             Kho Từ Vựng Học Thuật
           </h2>
           <p className="text-[11px] sm:text-xs text-on-surface-muted font-sans">
-            Tất cả từ ngữ cảnh ({cards.length} từ) • Đồng bộ thời gian thực
+            Tất cả từ ngữ cảnh ({cards.length} từ) • Đồng bộ đám mây
           </p>
         </div>
 
@@ -172,7 +172,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       </div>
 
       {/* Search Input */}
-      <div className="relative">
+      <div className="relative w-full">
         <Search className="w-4 h-4 text-on-surface-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
         <input
           type="text"
@@ -184,7 +184,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       </div>
 
       {/* Cards List */}
-      <div className="space-y-2.5 sm:space-y-3">
+      <div className="space-y-2.5 sm:space-y-3 w-full">
         {filteredCards.length === 0 ? (
           <div className="text-center py-12 text-xs sm:text-sm text-on-surface-muted bg-surface-container/30 rounded-xl border border-outline-hairline space-y-2">
             <BookOpen className="w-8 h-8 text-on-surface-muted mx-auto stroke-[1.5] opacity-50" />
@@ -200,26 +200,27 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           filteredCards.map((card) => (
             <div
               key={card.id}
-              className="p-3.5 sm:p-4 rounded-xl bg-surface-lowest border border-outline-hairline hover:border-outline shadow-sm space-y-2 transition-all"
+              className="p-3.5 sm:p-4 rounded-xl bg-surface-lowest border border-outline-hairline hover:border-outline shadow-sm space-y-2 transition-all w-full overflow-hidden"
             >
-              <div className="flex flex-wrap items-center justify-between gap-1.5">
-                <div className="flex flex-wrap items-baseline gap-1.5 sm:gap-2">
-                  <span className="font-serif font-bold text-base sm:text-lg text-primary">
+              {/* Row 1: Headword, POS, IPA, Audio, and Reps badge */}
+              <div className="flex items-start justify-between gap-2 w-full">
+                <div className="flex flex-wrap items-baseline gap-1.5 sm:gap-2 flex-1 min-w-0">
+                  <span className="font-serif font-bold text-base sm:text-lg text-primary break-words">
                     {card.headword}
                   </span>
                   {card.pos && (
-                    <span className="font-mono text-[10px] text-on-surface-muted bg-surface-container px-1.5 py-0.2 rounded">
+                    <span className="font-mono text-[10px] text-on-surface-muted bg-surface-container px-1.5 py-0.5 rounded shrink-0">
                       {card.pos}
                     </span>
                   )}
                   {card.ipa && (
-                    <span className="font-mono text-xs text-secondary">
+                    <span className="font-mono text-xs text-secondary shrink-0">
                       {card.ipa}
                     </span>
                   )}
                   <button
                     onClick={() => playAudio(card.headword, card.audio_url)}
-                    className="p-1 rounded-full hover:bg-surface-container text-on-surface-muted hover:text-primary transition-colors active:scale-95"
+                    className="p-1 rounded-full hover:bg-surface-container text-on-surface-muted hover:text-primary transition-colors active:scale-95 shrink-0"
                     title="Nghe phát âm"
                   >
                     <Volume2 className="w-3.5 h-3.5 stroke-[1.5]" />
@@ -240,8 +241,8 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 </div>
               </div>
 
-              {/* Meaning & Definition */}
-              <div className="text-xs sm:text-sm">
+              {/* Row 2: Meaning in Context & English definition */}
+              <div className="text-xs sm:text-sm break-words leading-relaxed">
                 <span className="font-semibold text-on-surface mr-1.5">
                   {card.meaning_vi}
                 </span>
@@ -252,26 +253,29 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 )}
               </div>
 
-              {/* Context Sentence */}
-              <p className="text-xs text-on-surface-muted font-sans bg-surface-low p-2 rounded-md border border-outline-hairline/60 leading-relaxed">
+              {/* Row 3: Sentence with clean wrapping */}
+              <p className="text-xs text-on-surface-muted font-sans bg-surface-low p-2.5 rounded-md border border-outline-hairline/60 break-words leading-relaxed">
                 "{card.sentence}"
               </p>
 
-              {/* Why & Article */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pt-0.5 text-[11px] text-on-surface-muted">
-                {card.why && (
-                  <div className="flex items-start gap-1 text-primary">
-                    <Sparkles className="w-3 h-3 stroke-[1.5] shrink-0 mt-0.5" />
-                    <span className="line-clamp-1">{card.why}</span>
-                  </div>
-                )}
-                {card.source_article_title && (
-                  <div className="flex items-center gap-1 text-on-surface-muted shrink-0">
-                    <ExternalLink className="w-3 h-3 stroke-[1.5] shrink-0" />
-                    <span className="truncate max-w-[200px] sm:max-w-xs">{card.source_article_title}</span>
-                  </div>
-                )}
-              </div>
+              {/* Row 4: Context Clue (Why) - WRAPS CLEANLY, NEVER OVERFLOWS */}
+              {card.why && (
+                <div className="flex items-start gap-1.5 text-xs text-primary bg-primary-tint/15 p-2 sm:p-2.5 rounded-md border border-primary/20 break-words leading-snug">
+                  <Sparkles className="w-3.5 h-3.5 stroke-[1.5] shrink-0 mt-0.5" />
+                  <p className="flex-1 min-w-0">
+                    <strong className="font-semibold">Vì sao nghĩa này: </strong>
+                    {card.why}
+                  </p>
+                </div>
+              )}
+
+              {/* Row 5: Article Link */}
+              {card.source_article_title && (
+                <div className="flex items-center gap-1 text-[10px] sm:text-[11px] text-on-surface-muted break-all pt-0.5">
+                  <ExternalLink className="w-3 h-3 stroke-[1.5] shrink-0" />
+                  <span className="line-clamp-1">Nguồn: {card.source_article_title}</span>
+                </div>
+              )}
             </div>
           ))
         )}
@@ -279,7 +283,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
       {/* Add New Word Live Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
           <div className="w-full max-w-lg bg-surface rounded-2xl border border-outline-hairline shadow-2xl p-4 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-outline-hairline">
               <h3 className="font-serif font-bold text-base sm:text-lg text-on-surface flex items-center gap-2">

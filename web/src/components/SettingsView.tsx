@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Share2,
   CheckCircle,
@@ -11,6 +11,9 @@ import {
   Shield,
   Key,
   RotateCcw,
+  Mail,
+  AlertTriangle,
+  Info,
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { supabase } from '../services/supabase';
@@ -28,11 +31,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 }) => {
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [syncing, setSyncing] = useState<boolean>(false);
-  const [supabaseConnected, setSupabaseConnected] = useState<boolean>(true);
   const [geminiKey, setGeminiKey] = useState<string>(
     localStorage.getItem('lexilens_gemini_key') || ''
   );
   const [keySaved, setKeySaved] = useState<boolean>(false);
+
+  // Email / Password Login state
+  const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
+  const [authEmail, setAuthEmail] = useState<string>('');
+  const [authPassword, setAuthPassword] = useState<string>('');
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [authLoading, setAuthLoading] = useState<boolean>(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const handleSaveKey = (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,6 +74,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }, 1200);
   };
 
+  // Google OAuth Login
   const handleLoginGoogle = async () => {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
@@ -72,14 +83,57 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           redirectTo: window.location.origin,
         },
       });
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes('not enabled') || error.message.includes('validation_failed')) {
+          setAuthError(
+            'Google OAuth chưa được bật trên Supabase Dashboard. Vui lòng sử dụng tính năng Đăng nhập Email hoặc bật Google Provider trong Supabase.'
+          );
+          setShowAuthModal(true);
+        } else {
+          alert(`Đăng nhập Google: ${error.message}`);
+        }
+      }
     } catch (err: any) {
-      alert(`Đăng nhập Google: ${err.message}`);
+      setAuthError(err.message);
+      setShowAuthModal(true);
     }
   };
 
+  // Email / Password Auth handler
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    setAuthError(null);
+
+    try {
+      if (authMode === 'login') {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: authEmail.trim(),
+          password: authPassword,
+        });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.auth.signUp({
+          email: authEmail.trim(),
+          password: authPassword,
+        });
+        if (error) throw error;
+      }
+      setShowAuthModal(false);
+    } catch (err: any) {
+      setAuthError(err.message || 'Lỗi đăng nhập/đăng ký.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.reload();
+  };
+
   return (
-    <div className="space-y-4 sm:space-y-6 max-w-xl mx-auto">
+    <div className="space-y-4 sm:space-y-6 max-w-xl mx-auto w-full overflow-hidden">
       <div>
         <h2 className="text-lg sm:text-xl font-serif font-bold text-on-surface">
           Cài Đặt & Đồng Bộ Hệ Sinh Thái
@@ -122,31 +176,43 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         )}
       </div>
 
-      {/* Supabase Cloud Connection */}
+      {/* Supabase Cloud Connection & Account */}
       <div className="p-4 sm:p-5 rounded-xl bg-surface-container border border-outline-hairline space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 min-w-0">
             <Shield className="w-5 h-5 text-tertiary stroke-[1.5] shrink-0" />
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h4 className="font-serif font-bold text-sm text-on-surface">
                   Cơ sở Dữ liệu Cloud (Supabase)
                 </h4>
-                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Connected" />
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Connected" />
               </div>
-              <span className="text-[11px] text-on-surface-muted block truncate max-w-[240px] sm:max-w-none">
-                {profile.email ? profile.email : 'Chế độ Khách (Offline-First tự động đồng bộ khi đăng nhập)'}
+              <span className="text-[11px] text-on-surface-muted block truncate max-w-[220px] sm:max-w-none">
+                {profile.email ? profile.email : 'Chế độ Khách (Offline-First tự động lưu)'}
               </span>
             </div>
           </div>
 
-          <button
-            onClick={handleLoginGoogle}
-            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-surface hover:bg-surface-high border border-outline-hairline text-xs font-sans text-on-surface transition-colors active:scale-98 self-start sm:self-center"
-          >
-            <LogIn className="w-3.5 h-3.5 stroke-[1.5]" />
-            <span>Đăng nhập Google</span>
-          </button>
+          <div className="flex items-center gap-2 self-start sm:self-center">
+            {profile.email ? (
+              <button
+                onClick={handleLogout}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-surface hover:bg-surface-high border border-outline-hairline text-xs font-sans text-red-600 transition-colors"
+              >
+                <LogOut className="w-3.5 h-3.5 stroke-[1.5]" />
+                <span>Đăng xuất</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowAuthModal(true)}
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary text-white text-xs font-sans font-medium transition-colors shadow-sm"
+              >
+                <LogIn className="w-3.5 h-3.5 stroke-[1.5]" />
+                <span>Đăng nhập / Đăng ký</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -220,6 +286,89 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <span>Đặt lại dữ liệu học tập ban đầu</span>
         </button>
       </div>
+
+      {/* Account Login Modal (Supabase Auth) */}
+      {showAuthModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
+          <div className="w-full max-w-md bg-surface rounded-2xl border border-outline-hairline shadow-2xl p-5 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-outline-hairline">
+              <h3 className="font-serif font-bold text-base text-on-surface flex items-center gap-2">
+                <Shield className="w-4 h-4 text-primary stroke-[1.5]" />
+                <span>{authMode === 'login' ? 'Đăng Nhập Tài Khoản' : 'Đăng Ký Tài Khoản'}</span>
+              </h3>
+              <button
+                onClick={() => setShowAuthModal(false)}
+                className="text-on-surface-muted hover:text-on-surface text-sm"
+              >
+                Đóng
+              </button>
+            </div>
+
+            {authError && (
+              <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <p className="leading-relaxed">{authError}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleEmailAuth} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-on-surface mb-1">
+                  Email học viên:
+                </label>
+                <input
+                  type="email"
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  placeholder="student@university.edu.vn"
+                  required
+                  className="w-full px-3 py-2 rounded-lg bg-surface-lowest border border-outline-hairline text-sm text-on-surface focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-on-surface mb-1">
+                  Mật khẩu:
+                </label>
+                <input
+                  type="password"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  placeholder="Tối thiểu 6 ký tự"
+                  required
+                  className="w-full px-3 py-2 rounded-lg bg-surface-lowest border border-outline-hairline text-sm text-on-surface focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={authLoading}
+                className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-medium transition-colors shadow-sm disabled:opacity-50"
+              >
+                {authLoading ? 'Đang xử lý...' : authMode === 'login' ? 'Đăng Nhập' : 'Đăng Ký Ngay'}
+              </button>
+            </form>
+
+            <div className="pt-2 text-center text-xs text-on-surface-muted border-t border-outline-hairline flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')}
+                className="text-primary hover:underline font-medium"
+              >
+                {authMode === 'login' ? 'Chưa có tài khoản? Đăng ký' : 'Đã có tài khoản? Đăng nhập'}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleLoginGoogle}
+                className="text-secondary hover:underline font-medium"
+              >
+                Thử Google OAuth
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

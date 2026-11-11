@@ -30,14 +30,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const masteredCards = cards.filter((c) => c.reps >= 3).length;
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-hidden">
       {/* Welcome & Streak Banner */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 p-4 sm:p-5 rounded-xl bg-surface-container border border-outline-hairline shadow-academic">
-        <div>
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-4 sm:p-5 rounded-xl bg-surface-container border border-outline-hairline shadow-academic">
+        <div className="min-w-0">
           <span className="text-[11px] font-mono uppercase tracking-wider text-primary font-semibold">
             Học thuật & Trực quan
           </span>
-          <h1 className="text-xl sm:text-2xl font-serif font-bold text-on-surface mt-0.5">
+          <h1 className="text-xl sm:text-2xl font-serif font-bold text-on-surface mt-0.5 truncate">
             Chào {profile.display_name || 'Học viên'}
           </h1>
           <p className="text-xs sm:text-sm text-on-surface-muted font-sans mt-0.5">
@@ -74,7 +74,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               ? `Bạn có ${dueCards.length} từ vựng cần ôn lại ngay bây giờ`
               : 'Tuyệt vời! Bạn đã hoàn thành tất cả thẻ đến hạn'}
           </h2>
-          <p className="text-xs sm:text-sm text-on-surface-muted font-sans mt-1.5 sm:mt-2">
+          <p className="text-xs sm:text-sm text-on-surface-muted font-sans mt-1.5 sm:mt-2 leading-relaxed">
             Thuật toán FSRS tính toán thời điểm vàng giúp ngăn chặn đường cong quên lãng
             kèm ngữ cảnh câu văn gốc bạn đã tra khi đọc báo.
           </p>
@@ -144,35 +144,39 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span>Nguồn tài liệu tra cứu gần đây</span>
           </h3>
         </div>
-        <div className="space-y-2">
+
+        <div className="space-y-2.5">
           {cards.length === 0 ? (
             <p className="text-xs text-on-surface-muted italic py-3 text-center">
-              Chưa có từ vựng nào. Hãy bấm "Xem kho từ đã lưu" hoặc chuyển sang tab Từ vựng để thêm!
+              Chưa có từ vựng nào. Hãy bấm "Thêm từ mới" ở tab Từ vựng để bắt đầu!
             </p>
           ) : (
             cards.slice(0, 3).map((card) => (
               <div
                 key={card.id}
-                className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3 rounded-lg bg-surface border border-outline-hairline"
+                className="p-3 rounded-lg bg-surface border border-outline-hairline space-y-1.5"
               >
-                <div className="min-w-0 w-full sm:w-auto flex-1">
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-serif font-semibold text-sm text-on-surface">
+                {/* Header row: Word + POS on left, Meaning badge on right - NEVER OVERLAPS */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-serif font-bold text-sm sm:text-base text-on-surface truncate">
                       {card.headword}
                     </span>
                     {card.pos && (
-                      <span className="font-mono text-[10px] text-on-surface-muted px-1.5 py-0.2 rounded bg-surface-container">
+                      <span className="font-mono text-[10px] text-on-surface-muted bg-surface-container px-1.5 py-0.5 rounded shrink-0">
                         {card.pos}
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-on-surface-muted line-clamp-2 sm:truncate mt-0.5">
-                    "{card.sentence}"
-                  </p>
+                  <span className="text-[11px] font-sans text-primary bg-primary-tint/25 px-2 py-0.5 rounded border border-primary/20 shrink-0 max-w-[55%] truncate text-right">
+                    {card.meaning_vi}
+                  </span>
                 </div>
-                <span className="text-[11px] font-sans text-primary bg-primary-tint/20 px-2 py-0.5 rounded border border-primary/20 shrink-0 self-start sm:self-center">
-                  {card.meaning_vi}
-                </span>
+
+                {/* Sentence row: cleanly below */}
+                <p className="text-xs text-on-surface-muted line-clamp-2 leading-relaxed">
+                  "{card.sentence}"
+                </p>
               </div>
             ))
           )}
