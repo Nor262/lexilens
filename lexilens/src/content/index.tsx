@@ -153,14 +153,55 @@ const ContentApp: React.FC = () => {
 
     // Listen to Web App auth sync bridge events
     const webAuthBridgeListener = (event: MessageEvent) => {
+      // 1. Web -> Extension sync: Web sends token, Extension saves it
       if (event.data?.type === 'LEXILENS_AUTH_STATE_CHANGE' && event.data?.payload) {
         chrome.runtime.sendMessage({
           type: 'SYNC_SESSION_FROM_PAGE',
           payload: event.data.payload,
         }).catch(() => {});
       }
+
+      // 2. Web asking for Extension session: Extension replies with current session
+      if (event.data?.type === 'LEXILENS_REQUEST_EXTENSION_SESSION') {
+        chrome.runtime.sendMessage({ type: 'GET_USER' }, (res) => {
+          if (res?.success && res.data) {
+            chrome.storage.local.get(['lexilens_session'], (sRes) => {
+              if (sRes?.lexilens_session?.access_token) {
+                window.postMessage({
+                  type: 'LEXILENS_EXTENSION_SESSION_RESPONSE',
+                  payload: {
+                    access_token: sRes.lexilens_session.access_token,
+                    refresh_token: sRes.lexilens_session.refresh_token,
+                    user: res.data,
+                  },
+                }, '*');
+              }
+            });
+          }
+        });
+      }
     };
     window.addEventListener('message', webAuthBridgeListener);
+
+    // When mounting on web app, proactively push extension session if user is logged in
+    if (window.location.hostname.includes('lexilens-app.vercel.app') || window.location.hostname === 'localhost') {
+      chrome.runtime.sendMessage({ type: 'GET_USER' }, (res) => {
+        if (res?.success && res.data) {
+          chrome.storage.local.get(['lexilens_session'], (sRes) => {
+            if (sRes?.lexilens_session?.access_token) {
+              window.postMessage({
+                type: 'LEXILENS_EXTENSION_SESSION_RESPONSE',
+                payload: {
+                  access_token: sRes.lexilens_session.access_token,
+                  refresh_token: sRes.lexilens_session.refresh_token,
+                  user: res.data,
+                },
+              }, '*');
+            }
+          });
+        }
+      });
+    }
 
     return () => {
       window.removeEventListener('mouseup', handleMouseUp);

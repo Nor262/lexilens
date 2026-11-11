@@ -53,6 +53,7 @@ export const App: React.FC = () => {
       }
     };
 
+    // Check if session exists in Supabase, OR sync from Extension if user logged into Extension first
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setSessionUser(session.user);
@@ -64,11 +65,39 @@ export const App: React.FC = () => {
         }));
         loadAllData(session.user.id);
         broadcastAuth(session);
+        setAuthLoading(false);
       } else {
-        setSessionUser(null);
+        // Request session from Extension content script bridge
+        window.postMessage({ type: 'LEXILENS_REQUEST_EXTENSION_SESSION' }, '*');
+        // Allow 300ms for extension bridge to reply before turning off loading
+        setTimeout(() => {
+          setAuthLoading(false);
+        }, 350);
       }
-      setAuthLoading(false);
     });
+
+    // Listen to session delivered by Extension
+    const extensionAuthListener = async (event: MessageEvent) => {
+      if (event.data?.type === 'LEXILENS_EXTENSION_SESSION_RESPONSE' && event.data?.payload) {
+        const { access_token, refresh_token, user } = event.data.payload;
+        if (access_token && refresh_token) {
+          const { data } = await supabase.auth.setSession({ access_token, refresh_token });
+          const activeUser = data?.user || user;
+          if (activeUser?.id) {
+            setSessionUser(activeUser);
+            setProfile((prev) => ({
+              ...prev,
+              id: activeUser.id,
+              email: activeUser.email,
+              display_name: activeUser.user_metadata?.full_name || 'Học viên',
+            }));
+            loadAllData(activeUser.id);
+          }
+          setAuthLoading(false);
+        }
+      }
+    };
+    window.addEventListener('message', extensionAuthListener);
 
     const {
       data: { subscription },
@@ -119,6 +148,7 @@ export const App: React.FC = () => {
     return () => {
       subscription.unsubscribe();
       window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('message', extensionAuthListener);
     };
   }, []);
 
