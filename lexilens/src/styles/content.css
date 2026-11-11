@@ -35,3 +35,29 @@
 .animate-fadeIn {
   animation: fadeIn 0.15s ease-out forwards;
 }
+
+/* Custom smooth scrollbar for LexiLens Popup inside Shadow DOM */
+.lexilens-scroll {
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(154, 64, 35, 0.4) transparent !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+.lexilens-scroll::-webkit-scrollbar {
+  width: 6px !important;
+}
+
+.lexilens-scroll::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.lexilens-scroll::-webkit-scrollbar-thumb {
+  background: rgba(154, 64, 35, 0.35) !important;
+  border-radius: 9999px !important;
+}
+
+.lexilens-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(154, 64, 35, 0.6) !important;
+}

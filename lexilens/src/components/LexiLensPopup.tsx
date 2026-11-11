@@ -223,9 +223,25 @@ export const LexiLensPopup: React.FC<LexiLensPopupProps> = ({
   };
 
   // Prevent popup from going offscreen with fixed coordinates
-  const popupWidth = 390;
-  const left = Math.min(Math.max(10, x), window.innerWidth - popupWidth - 20);
-  const top = Math.max(10, Math.min(window.innerHeight - 500, y + 8));
+  const popupWidth = 400;
+  const maxPopupHeight = Math.min(520, Math.max(300, window.innerHeight - 36));
+  const left = Math.min(Math.max(12, x), Math.max(12, window.innerWidth - popupWidth - 16));
+
+  let top: number;
+  const spaceBelow = window.innerHeight - (y + 16);
+  const spaceAbove = y - 16;
+
+  if (spaceBelow >= maxPopupHeight) {
+    top = y + 8;
+  } else if (spaceAbove >= maxPopupHeight) {
+    top = Math.max(12, y - maxPopupHeight - 8);
+  } else {
+    if (y + 8 + maxPopupHeight <= window.innerHeight - 12) {
+      top = y + 8;
+    } else {
+      top = Math.max(12, window.innerHeight - maxPopupHeight - 12);
+    }
+  }
 
   return (
     <div
@@ -236,15 +252,19 @@ export const LexiLensPopup: React.FC<LexiLensPopupProps> = ({
         left: `${left}px`,
         top: `${top}px`,
         width: `${popupWidth}px`,
+        maxHeight: `${maxPopupHeight}px`,
         zIndex: 2147483647,
         pointerEvents: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
       }}
-      className="bg-surface border border-outline-hairline rounded-lg shadow-academic font-sans text-on-surface text-sm overflow-hidden animate-fadeIn"
+      className="bg-surface border border-outline-hairline rounded-xl shadow-2xl font-sans text-on-surface text-sm overflow-hidden animate-fadeIn"
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
+      onWheel={(e) => e.stopPropagation()}
     >
       {/* 1. Header: Topic Chips & Close */}
-      <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-outline-hairline bg-surface-low">
+      <div className="shrink-0 flex items-center justify-between px-3.5 py-2.5 border-b border-outline-hairline bg-surface-low">
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
           {topicsList.map((t) => (
             <button
@@ -301,7 +321,7 @@ export const LexiLensPopup: React.FC<LexiLensPopupProps> = ({
 
       {/* 2. Mode Tabs if sentence analysis is available */}
       {isSentenceMode && (
-        <div className="flex border-b border-outline-hairline text-xs font-medium">
+        <div className="shrink-0 flex border-b border-outline-hairline text-xs font-medium">
           <button
             onClick={() => setActiveTab('syntax')}
             className={`flex-1 py-1.5 flex items-center justify-center gap-1.5 cursor-pointer ${
@@ -317,7 +337,10 @@ export const LexiLensPopup: React.FC<LexiLensPopupProps> = ({
       )}
 
       {/* 3. Main Content Area */}
-      <div className="p-3.5 space-y-3 max-h-[460px] overflow-y-auto">
+      <div 
+        className="flex-1 min-h-0 p-3.5 space-y-3 lexilens-scroll overflow-y-auto"
+        onWheel={(e) => e.stopPropagation()}
+      >
         {/* Auth Notice Alert if user clicked save without logging in */}
         {authNotice && (
           <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between gap-2 animate-fadeIn">
@@ -542,11 +565,11 @@ export const LexiLensPopup: React.FC<LexiLensPopupProps> = ({
       </div>
 
       {/* 4. Footer Action: Save Flashcard */}
-      <div className="p-3 border-t border-outline-hairline bg-surface-low">
+      <div className="shrink-0 p-3 border-t border-outline-hairline bg-surface-low">
         <button
           onClick={handleSave}
           disabled={loading || isSaved || isSaving}
-          className={`w-full py-2 px-3 rounded flex items-center justify-center gap-2 text-xs font-semibold transition-all duration-150 ${
+          className={`w-full py-2.5 px-3 rounded-lg flex items-center justify-center gap-2 text-xs font-semibold shadow-sm transition-all duration-150 ${
             isSaved
               ? 'bg-tertiary text-white cursor-default'
               : 'bg-primary hover:bg-primary-hover text-white active:scale-[0.98] cursor-pointer'
