@@ -99,7 +99,7 @@ export const Navigation: React.FC<NavigationProps> = ({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary-tint/35 hover:bg-primary-tint/50 text-primary border border-primary/20 text-xs font-medium font-sans transition-all active:scale-95 shadow-sm"
             >
               <Puzzle className="w-3.5 h-3.5 stroke-[2]" />
-              <span>Cài Extension (.zip)</span>
+              <span>Cài đặt Extension</span>
             </button>
           </div>
 

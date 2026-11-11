@@ -88,13 +88,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               className="flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-primary hover:bg-primary-hover text-white font-sans font-medium text-sm transition-all shadow-sm active:scale-98 disabled:opacity-50"
             >
               <Layers className="w-4 h-4 stroke-[1.5]" />
-              <span>{dueCards.length > 0 ? 'Bắt đầu phiên học (10 phút)' : 'Ôn tập tự do'}</span>
+              <span>{dueCards.length > 0 ? 'Bắt đầu phiên học 10 phút' : 'Ôn tập tự do'}</span>
               <ArrowRight className="w-4 h-4 stroke-[1.5]" />
             </button>
 
             <button
               onClick={onOpenLibrary}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-surface-low hover:bg-surface-container text-on-surface font-sans text-sm border border-outline-hairline transition-colors active:scale-98"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-surface-low hover:bg-surface-container text-on-surface font-sans text-sm border border-outline-hairline transition-colors active:scale-98 cursor-pointer"
             >
               <BookOpen className="w-4 h-4 stroke-[1.5]" />
               <span>Xem kho {totalCards} từ đã lưu</span>
@@ -102,9 +102,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             <button
               onClick={onOpenInstallModal}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary-tint/20 hover:bg-primary-tint/35 text-primary font-sans text-sm border border-primary/25 transition-colors active:scale-98"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary-tint/20 hover:bg-primary-tint/35 text-primary font-sans text-sm border border-primary/25 transition-colors active:scale-98 cursor-pointer"
             >
-              <span>Tải Extension Chrome (.zip)</span>
+              <span>Cài đặt Extension Chrome</span>
             </button>
           </div>
         </div>

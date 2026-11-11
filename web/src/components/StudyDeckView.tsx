@@ -7,6 +7,8 @@ import {
   HelpCircle,
   Sparkles,
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { Flashcard, FSRSRating } from '../types';
 import { reviewCard } from '../services/fsrs';
@@ -26,12 +28,39 @@ export const StudyDeckView: React.FC<StudyDeckViewProps> = ({
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
   const [sessionCompleted, setSessionCompleted] = useState<boolean>(false);
 
+  // Swipe & Drag state
+  const [dragStartX, setDragStartX] = useState<number | null>(null);
+  const [dragOffsetX, setDragOffsetX] = useState<number>(0);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+
   // Cards to review
   const reviewDeck = cards.length > 0 ? cards : [];
   const currentCard = reviewDeck[currentIndex];
 
   const handleFlip = () => {
     setIsFlipped((prev) => !prev);
+  };
+
+  const handleNext = () => {
+    if (currentIndex + 1 < reviewDeck.length) {
+      setCurrentIndex((prev) => prev + 1);
+      setIsFlipped(false);
+    } else {
+      setSessionCompleted(true);
+    }
+    setDragOffsetX(0);
+    setIsDragging(false);
+    setDragStartX(null);
+  };
+
+  const handlePrev = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex((prev) => prev - 1);
+      setIsFlipped(false);
+    }
+    setDragOffsetX(0);
+    setIsDragging(false);
+    setDragStartX(null);
   };
 
   const handleRate = (rating: FSRSRating) => {
@@ -45,6 +74,70 @@ export const StudyDeckView: React.FC<StudyDeckViewProps> = ({
       setIsFlipped(false);
     } else {
       setSessionCompleted(true);
+    }
+  };
+
+  // Touch gesture handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setDragStartX(e.touches[0].clientX);
+    setIsDragging(true);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (dragStartX === null) return;
+    const diff = e.touches[0].clientX - dragStartX;
+    setDragOffsetX(diff);
+  };
+
+  const handleTouchEnd = () => {
+    if (dragStartX === null) return;
+    if (dragOffsetX < -50) {
+      // Swiped left -> Next
+      handleNext();
+    } else if (dragOffsetX > 50) {
+      // Swiped right -> Back
+      handlePrev();
+    } else if (Math.abs(dragOffsetX) < 10) {
+      // Tap without drag -> Flip
+      handleFlip();
+    }
+    setDragStartX(null);
+    setDragOffsetX(0);
+    setIsDragging(false);
+  };
+
+  // Mouse drag gesture handlers
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    setDragStartX(e.clientX);
+    setIsDragging(true);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (dragStartX === null || !isDragging) return;
+    const diff = e.clientX - dragStartX;
+    setDragOffsetX(diff);
+  };
+
+  const handleMouseUp = () => {
+    if (dragStartX === null) return;
+    if (dragOffsetX < -50) {
+      handleNext();
+    } else if (dragOffsetX > 50) {
+      handlePrev();
+    } else if (Math.abs(dragOffsetX) < 10) {
+      handleFlip();
+    }
+    setDragStartX(null);
+    setDragOffsetX(0);
+    setIsDragging(false);
+  };
+
+  const handleMouseLeave = () => {
+    if (isDragging) {
+      setDragStartX(null);
+      setDragOffsetX(0);
+      setIsDragging(false);
     }
   };
 
@@ -82,7 +175,7 @@ export const StudyDeckView: React.FC<StudyDeckViewProps> = ({
         </p>
         <button
           onClick={onFinish}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium text-sm transition-colors shadow-sm"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium text-sm transition-colors shadow-sm cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4 stroke-[1.5]" />
           <span>Quay lại Trang chủ</span>
@@ -122,12 +215,12 @@ export const StudyDeckView: React.FC<StudyDeckViewProps> = ({
       <div className="flex items-center justify-between text-xs font-mono text-on-surface-muted px-1">
         <button
           onClick={onFinish}
-          className="inline-flex items-center gap-1 hover:text-on-surface transition-colors py-1"
+          className="inline-flex items-center gap-1 hover:text-on-surface transition-colors py-1 cursor-pointer"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Thoát phiên</span>
         </button>
-        <span>
+        <span className="font-medium">
           Thẻ {currentIndex + 1} / {reviewDeck.length}
         </span>
       </div>
@@ -140,176 +233,251 @@ export const StudyDeckView: React.FC<StudyDeckViewProps> = ({
         />
       </div>
 
-      {/* Interactive Flashcard Card */}
-      <div
-        onClick={handleFlip}
-        className="cursor-pointer select-none rounded-xl bg-surface-lowest border border-outline-hairline p-4 sm:p-6 min-h-[260px] sm:min-h-[320px] flex flex-col justify-between shadow-academic transition-all hover:border-outline active:scale-[0.99]"
-      >
-        {/* Top bar on card */}
-        <div className="flex items-center justify-between pb-2 border-b border-outline-hairline/60">
-          <span className="text-[11px] font-mono uppercase tracking-wider text-on-surface-muted truncate">
-            {isFlipped ? 'Mặt sau — Giải nghĩa' : 'Mặt trước — Đoán từ'}
-          </span>
-          <span className="text-[11px] text-primary flex items-center gap-1 shrink-0 font-medium">
-            <RotateCw className="w-3 h-3 stroke-[1.5]" />
-            <span>Chạm để lật</span>
-          </span>
-        </div>
-
-        {/* Center Content */}
-        <div className="my-auto py-4 sm:py-6 space-y-3 sm:space-y-4">
-          {renderClozeSentence()}
-
-          {!isFlipped && (
-            <div className="pt-2 animate-fadeIn">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-container/80 border border-outline-hairline text-xs text-on-surface-muted">
-                <HelpCircle className="w-3.5 h-3.5 text-primary stroke-[1.5] shrink-0" />
-                <span>
-                  <strong className="text-on-surface font-medium">Gợi ý nghĩa gốc: </strong>
-                  {currentCard.root_meaning || currentCard.definition_en || currentCard.meaning_vi}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {isFlipped && (
-            <div className="pt-3 sm:pt-4 border-t border-outline-hairline space-y-2.5 sm:space-y-3 animate-fadeIn">
-              <div className="flex flex-wrap items-baseline gap-2">
-                <h3 className="font-serif font-bold text-xl sm:text-2xl text-primary">
-                  {currentCard.headword}
-                </h3>
-                {currentCard.pos && (
-                  <span className="font-mono text-[11px] text-on-surface-muted px-1.5 py-0.2 rounded bg-surface-container">
-                    {currentCard.pos}
-                  </span>
-                )}
-                {currentCard.ipa && (
-                  <span className="font-mono text-xs sm:text-sm text-secondary">
-                    {currentCard.ipa}
-                  </span>
-                )}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    playAudio(currentCard.headword, currentCard.audio_url);
-                  }}
-                  className="p-1 rounded-full hover:bg-surface-container text-on-surface-muted hover:text-primary transition-colors ml-auto sm:ml-0"
-                  title="Phát âm bản xứ"
-                >
-                  <Volume2 className="w-4 h-4 stroke-[1.5]" />
-                </button>
-              </div>
-
-              {/* Meaning comparison grid: Nghĩa gốc vs Nghĩa trong ngữ cảnh */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {/* 1. Nghĩa gốc */}
-                <div className="bg-surface-container/60 p-2.5 sm:p-3 rounded-lg border border-outline-hairline space-y-1">
-                  <span className="text-[10px] sm:text-[11px] font-sans text-secondary font-bold uppercase tracking-wider block">
-                    📖 Nghĩa gốc (Từ điển):
-                  </span>
-                  <p className="font-sans font-medium text-xs sm:text-sm text-on-surface leading-snug">
-                    {currentCard.root_meaning || currentCard.definition_en || 'Nghĩa phổ thông của từ.'}
-                  </p>
-                  {currentCard.definition_en && currentCard.root_meaning && (
-                    <p className="text-[11px] text-on-surface-muted font-sans italic leading-snug">
-                      "{currentCard.definition_en}"
-                    </p>
-                  )}
-                </div>
-
-                {/* 2. Nghĩa trong ngữ cảnh */}
-                <div className="bg-primary-tint/15 p-2.5 sm:p-3 rounded-lg border border-primary/25 space-y-1">
-                  <span className="text-[10px] sm:text-[11px] font-sans text-primary font-bold uppercase tracking-wider block">
-                    🎯 Nghĩa trong ngữ cảnh:
-                  </span>
-                  <p className="font-sans font-bold text-xs sm:text-sm text-primary leading-snug">
-                    {currentCard.meaning_vi}
-                  </p>
-                  <span className="text-[10px] text-on-surface-muted block">
-                    (Áp dụng chuẩn xác trong bài đọc này)
-                  </span>
-                </div>
-              </div>
-
-              {/* Context Clue: Why */}
-              {currentCard.why && (
-                <div className="flex items-start gap-2 text-xs text-on-surface-muted bg-primary-tint/15 p-2 sm:p-2.5 rounded-md border border-primary/20">
-                  <Sparkles className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
-                  <p className="leading-snug">
-                    <strong className="text-primary font-medium">Vì sao nghĩa này: </strong>
-                    {currentCard.why}
-                  </p>
-                </div>
-              )}
-
-              {/* Collocations */}
-              {currentCard.collocations && currentCard.collocations.length > 0 && (
-                <div className="flex flex-wrap items-center gap-1.5 text-xs text-on-surface-muted pt-0.5">
-                  <span className="font-mono text-[10px] text-secondary uppercase font-semibold">Cụm hay gặp:</span>
-                  {currentCard.collocations.map((col, idx) => (
-                    <span
-                      key={idx}
-                      className="px-2 py-0.5 rounded bg-surface-container border border-outline-hairline text-[11px] font-sans"
-                    >
-                      {col}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {/* Source Article Link */}
-              {currentCard.source_article_title && (
-                <div className="text-[10px] sm:text-[11px] text-on-surface-muted flex items-center gap-1 truncate pt-0.5">
-                  <ExternalLink className="w-3 h-3 shrink-0" />
-                  <span className="truncate">Nguồn: {currentCard.source_article_title}</span>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Bottom prompt */}
-        {!isFlipped && (
-          <div className="text-center text-xs text-on-surface-muted font-sans pt-2 border-t border-outline-hairline/40">
-            Chạm vào thẻ để xem đáp án và chấm điểm FSRS
+      {/* Interactive Flashcard Card with Touch & Mouse Swipe */}
+      <div className="relative overflow-visible">
+        {/* Visual Swipe Direction Badges */}
+        {dragOffsetX > 20 && (
+          <div className="absolute -left-2 top-1/2 -translate-y-1/2 z-20 px-3 py-1.5 rounded-full bg-surface-lowest/95 border border-primary text-primary text-xs font-bold shadow-lg flex items-center gap-1 animate-fadeIn pointer-events-none">
+            <ChevronLeft className="w-4 h-4 stroke-[2]" />
+            <span>Thẻ trước</span>
           </div>
         )}
+        {dragOffsetX < -20 && (
+          <div className="absolute -right-2 top-1/2 -translate-y-1/2 z-20 px-3 py-1.5 rounded-full bg-surface-lowest/95 border border-primary text-primary text-xs font-bold shadow-lg flex items-center gap-1 animate-fadeIn pointer-events-none">
+            <span>Thẻ tiếp</span>
+            <ChevronRight className="w-4 h-4 stroke-[2]" />
+          </div>
+        )}
+
+        <div
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseLeave}
+          style={{
+            transform: dragOffsetX ? `translateX(${dragOffsetX}px) rotate(${dragOffsetX * 0.035}deg)` : undefined,
+            transition: isDragging ? 'none' : 'transform 0.25s ease-out',
+          }}
+          className={`select-none rounded-xl bg-surface-lowest border border-outline-hairline p-4 sm:p-6 min-h-[260px] sm:min-h-[320px] flex flex-col justify-between shadow-academic transition-colors hover:border-outline ${
+            isDragging ? 'cursor-grabbing' : 'cursor-grab'
+          }`}
+        >
+          {/* Top bar on card */}
+          <div className="flex items-center justify-between pb-2 border-b border-outline-hairline/60">
+            <span className="text-[11px] font-mono uppercase tracking-wider text-on-surface-muted truncate">
+              {isFlipped ? 'Mặt sau — Giải nghĩa' : 'Mặt trước — Đoán từ'}
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleFlip();
+              }}
+              className="text-[11px] text-primary flex items-center gap-1 shrink-0 font-medium hover:underline cursor-pointer"
+            >
+              <RotateCw className="w-3 h-3 stroke-[1.5]" />
+              <span>Chạm để lật</span>
+            </button>
+          </div>
+
+          {/* Center Content */}
+          <div className="my-auto py-4 sm:py-6 space-y-3 sm:space-y-4">
+            {renderClozeSentence()}
+
+            {!isFlipped && (
+              <div className="pt-2 animate-fadeIn">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-container/80 border border-outline-hairline text-xs text-on-surface-muted">
+                  <HelpCircle className="w-3.5 h-3.5 text-primary stroke-[1.5] shrink-0" />
+                  <span>
+                    <strong className="text-on-surface font-medium">Gợi ý nghĩa gốc: </strong>
+                    {currentCard.root_meaning || currentCard.definition_en || currentCard.meaning_vi}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {isFlipped && (
+              <div className="pt-3 sm:pt-4 border-t border-outline-hairline space-y-2.5 sm:space-y-3 animate-fadeIn">
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <h3 className="font-serif font-bold text-xl sm:text-2xl text-primary">
+                    {currentCard.headword}
+                  </h3>
+                  {currentCard.pos && (
+                    <span className="font-mono text-[11px] text-on-surface-muted px-1.5 py-0.2 rounded bg-surface-container">
+                      {currentCard.pos}
+                    </span>
+                  )}
+                  {currentCard.ipa && (
+                    <span className="font-mono text-xs sm:text-sm text-secondary">
+                      {currentCard.ipa}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      playAudio(currentCard.headword, currentCard.audio_url);
+                    }}
+                    className="p-1 rounded-full hover:bg-surface-container text-on-surface-muted hover:text-primary transition-colors ml-auto sm:ml-0 cursor-pointer"
+                    title="Phát âm bản xứ"
+                  >
+                    <Volume2 className="w-4 h-4 stroke-[1.5]" />
+                  </button>
+                </div>
+
+                {/* Meaning comparison grid: Nghĩa gốc vs Nghĩa trong ngữ cảnh */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* 1. Nghĩa gốc */}
+                  <div className="bg-surface-container/60 p-2.5 sm:p-3 rounded-lg border border-outline-hairline space-y-1">
+                    <span className="text-[10px] sm:text-[11px] font-sans text-secondary font-bold uppercase tracking-wider block">
+                      Nghĩa gốc
+                    </span>
+                    <p className="font-sans font-medium text-xs sm:text-sm text-on-surface leading-snug">
+                      {currentCard.root_meaning || currentCard.definition_en || 'Nghĩa phổ thông của từ.'}
+                    </p>
+                    {currentCard.definition_en && currentCard.root_meaning && (
+                      <p className="text-[11px] text-on-surface-muted font-sans italic leading-snug">
+                        "{currentCard.definition_en}"
+                      </p>
+                    )}
+                  </div>
+
+                  {/* 2. Nghĩa trong ngữ cảnh */}
+                  <div className="bg-primary-tint/15 p-2.5 sm:p-3 rounded-lg border border-primary/25 space-y-1">
+                    <span className="text-[10px] sm:text-[11px] font-sans text-primary font-bold uppercase tracking-wider block">
+                      Nghĩa trong ngữ cảnh
+                    </span>
+                    <p className="font-sans font-bold text-xs sm:text-sm text-primary leading-snug">
+                      {currentCard.meaning_vi}
+                    </p>
+                    <span className="text-[10px] text-on-surface-muted block">
+                      Áp dụng trong bài đọc đang nghiên cứu
+                    </span>
+                  </div>
+                </div>
+
+                {/* Context Clue: Why */}
+                {currentCard.why && (
+                  <div className="flex items-start gap-2 text-xs text-on-surface-muted bg-primary-tint/15 p-2 sm:p-2.5 rounded-md border border-primary/20">
+                    <Sparkles className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
+                    <p className="leading-snug">
+                      <strong className="text-primary font-medium">Vì sao nghĩa này: </strong>
+                      {currentCard.why}
+                    </p>
+                  </div>
+                )}
+
+                {/* Collocations */}
+                {currentCard.collocations && currentCard.collocations.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-on-surface-muted pt-0.5">
+                    <span className="font-mono text-[10px] text-secondary uppercase font-semibold">Cụm hay gặp:</span>
+                    {currentCard.collocations.map((col, idx) => (
+                      <span
+                        key={idx}
+                        className="px-2 py-0.5 rounded bg-surface-container border border-outline-hairline text-[11px] font-sans"
+                      >
+                        {col}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Source Article Link */}
+                {currentCard.source_article_title && (
+                  <div className="text-[10px] sm:text-[11px] text-on-surface-muted flex items-center gap-1 truncate pt-0.5">
+                    <ExternalLink className="w-3 h-3 shrink-0" />
+                    <span className="truncate">Nguồn: {currentCard.source_article_title}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Bottom Hint */}
+          <div className="flex items-center justify-between text-[11px] text-on-surface-muted font-sans pt-2 border-t border-outline-hairline/40">
+            <span>Kéo sang trái hoặc phải để chuyển thẻ</span>
+            <span>Chạm để lật</span>
+          </div>
+        </div>
       </div>
 
-      {/* 4 FSRS Rating Action Buttons (2x2 on Mobile, 4 columns on Desktop) */}
+      {/* Navigation Controls: Back & Next accessible at ALL times (even before flipping) */}
+      <div className="flex items-center justify-between gap-2.5 pt-1">
+        <button
+          type="button"
+          onClick={handlePrev}
+          disabled={currentIndex === 0}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-surface-container hover:bg-surface-high border border-outline-hairline text-xs sm:text-sm font-medium text-on-surface transition-colors disabled:opacity-35 disabled:pointer-events-none active:scale-98 cursor-pointer"
+        >
+          <ChevronLeft className="w-4 h-4 stroke-[2]" />
+          <span>Thẻ trước</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handleFlip}
+          className="inline-flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl bg-surface-lowest hover:bg-surface-container border border-outline-hairline text-xs sm:text-sm font-medium text-primary transition-colors active:scale-98 cursor-pointer"
+        >
+          <RotateCw className="w-3.5 h-3.5 stroke-[1.8]" />
+          <span>{isFlipped ? 'Xem câu hỏi' : 'Lật thẻ'}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handleNext}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-surface-container hover:bg-surface-high border border-outline-hairline text-xs sm:text-sm font-medium text-on-surface transition-colors active:scale-98 cursor-pointer"
+        >
+          <span>{currentIndex + 1 === reviewDeck.length ? 'Hoàn thành' : 'Thẻ tiếp'}</span>
+          <ChevronRight className="w-4 h-4 stroke-[2]" />
+        </button>
+      </div>
+
+      {/* 4 FSRS Rating Action Buttons without any parentheses () */}
       {isFlipped && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 animate-fadeIn">
-          <button
-            onClick={() => handleRate(1)}
-            className="flex items-center sm:flex-col justify-between sm:justify-center py-2.5 px-3 rounded-lg bg-red-50 hover:bg-red-100 text-red-800 border border-red-200 transition-colors active:scale-95"
-          >
-            <span className="font-sans font-semibold text-xs">Again (Lại)</span>
-            <span className="font-mono text-[10px] text-red-600 sm:mt-0.5">&lt; 10 phút</span>
-          </button>
+        <div className="space-y-1.5 pt-2 animate-fadeIn">
+          <span className="text-[11px] font-sans text-on-surface-muted block text-center font-medium">
+            Đánh giá mức độ nhớ để FSRS lên lịch ôn tập:
+          </span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <button
+              type="button"
+              onClick={() => handleRate(1)}
+              className="flex items-center sm:flex-col justify-between sm:justify-center py-2.5 px-3 rounded-xl bg-red-50 hover:bg-red-100 text-red-800 border border-red-200 transition-colors active:scale-95 shadow-sm cursor-pointer"
+            >
+              <span className="font-sans font-bold text-xs">Quên</span>
+              <span className="font-mono text-[10px] text-red-600 sm:mt-0.5">&lt; 10 phút</span>
+            </button>
 
-          <button
-            onClick={() => handleRate(2)}
-            className="flex items-center sm:flex-col justify-between sm:justify-center py-2.5 px-3 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition-colors active:scale-95"
-          >
-            <span className="font-sans font-semibold text-xs">Hard (Khó)</span>
-            <span className="font-mono text-[10px] text-amber-600 sm:mt-0.5">1 ngày</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => handleRate(2)}
+              className="flex items-center sm:flex-col justify-between sm:justify-center py-2.5 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition-colors active:scale-95 shadow-sm cursor-pointer"
+            >
+              <span className="font-sans font-bold text-xs">Khó</span>
+              <span className="font-mono text-[10px] text-amber-600 sm:mt-0.5">1 ngày</span>
+            </button>
 
-          <button
-            onClick={() => handleRate(3)}
-            className="flex items-center sm:flex-col justify-between sm:justify-center py-2.5 px-3 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 transition-colors active:scale-95"
-          >
-            <span className="font-sans font-semibold text-xs">Good (Tốt)</span>
-            <span className="font-mono text-[10px] text-blue-600 sm:mt-0.5">3 ngày</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => handleRate(3)}
+              className="flex items-center sm:flex-col justify-between sm:justify-center py-2.5 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 transition-colors active:scale-95 shadow-sm cursor-pointer"
+            >
+              <span className="font-sans font-bold text-xs">Nhớ</span>
+              <span className="font-mono text-[10px] text-blue-600 sm:mt-0.5">3 ngày</span>
+            </button>
 
-          <button
-            onClick={() => handleRate(4)}
-            className="flex items-center sm:flex-col justify-between sm:justify-center py-2.5 px-3 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-colors active:scale-95"
-          >
-            <span className="font-sans font-semibold text-xs">Easy (Dễ)</span>
-            <span className="font-mono text-[10px] text-emerald-600 sm:mt-0.5">7 ngày</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => handleRate(4)}
+              className="flex items-center sm:flex-col justify-between sm:justify-center py-2.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-colors active:scale-95 shadow-sm cursor-pointer"
+            >
+              <span className="font-sans font-bold text-xs">Dễ</span>
+              <span className="font-mono text-[10px] text-emerald-600 sm:mt-0.5">7 ngày</span>
+            </button>
+          </div>
         </div>
       )}
     </div>

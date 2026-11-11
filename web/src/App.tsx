@@ -6,6 +6,7 @@ import { LibraryView } from './components/LibraryView';
 import { StatsView } from './components/StatsView';
 import { SettingsView } from './components/SettingsView';
 import { InstallExtensionModal } from './components/InstallExtensionModal';
+import { FloatingExtensionBubble } from './components/FloatingExtensionBubble';
 import { Flashcard, ReviewLog, UserProfile, FSRSRating } from './types';
 import {
   getCards,
@@ -192,6 +193,9 @@ export const App: React.FC = () => {
           />
         )}
       </main>
+
+      {/* Floating Action Bubble at bottom-right corner */}
+      <FloatingExtensionBubble onOpen={() => setIsInstallModalOpen(true)} />
 
       <InstallExtensionModal
         isOpen={isInstallModalOpen}

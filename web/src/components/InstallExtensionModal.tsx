@@ -135,7 +135,7 @@ export const InstallExtensionModal: React.FC<InstallExtensionModalProps> = ({
               className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs sm:text-sm font-sans font-medium transition-all shadow-sm active:scale-95 shrink-0"
             >
               <Download className="w-4 h-4 stroke-[2]" />
-              <span>Tải file Extension (.zip)</span>
+              <span>Tải file Extension</span>
             </button>
           </div>
 
