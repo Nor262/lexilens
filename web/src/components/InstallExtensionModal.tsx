@@ -49,7 +49,7 @@ export const InstallExtensionModal: React.FC<InstallExtensionModalProps> = ({
       num: '01',
       icon: FolderArchive,
       title: 'Tải về & Giải nén',
-      desc: 'Bấm nút "Tải file Extension (.zip)" bên dưới và giải nén thư mục ra máy tính của bạn.',
+      desc: 'Bấm nút "Tải file Extension" bên dưới và giải nén thư mục ra máy tính (file manifest.json nằm trực tiếp ngay trong thư mục giải nén).',
     },
     {
       num: '02',
