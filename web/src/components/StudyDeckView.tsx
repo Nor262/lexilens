@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Lightbulb,
+  BookOpen,
 } from 'lucide-react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'motion/react';
 import confetti from 'canvas-confetti';
@@ -33,6 +34,7 @@ export const StudyDeckView: React.FC<StudyDeckViewProps> = ({
   const [showHint, setShowHint] = useState<boolean>(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
   const [sessionCompleted, setSessionCompleted] = useState<boolean>(false);
+  const [sessionRatings, setSessionRatings] = useState<FSRSRating[]>([]);
 
   // Motion drag values
   const dragX = useMotionValue(0);
@@ -102,6 +104,7 @@ export const StudyDeckView: React.FC<StudyDeckViewProps> = ({
   const handleRate = (rating: FSRSRating) => {
     if (!currentCard) return;
 
+    setSessionRatings((prev) => [...prev, rating]);
     const updated = reviewCard(currentCard, rating);
     onUpdateCard(updated, rating);
 
@@ -158,7 +161,38 @@ export const StudyDeckView: React.FC<StudyDeckViewProps> = ({
     }
   };
 
+  if (cards.length === 0) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="max-w-md mx-auto py-12 px-4 text-center space-y-4"
+      >
+        <div className="w-16 h-16 mx-auto rounded-2xl bg-surface-container border border-outline-hairline flex items-center justify-center text-primary shadow-sm">
+          <BookOpen className="w-8 h-8 stroke-[1.5]" />
+        </div>
+        <h2 className="text-xl sm:text-2xl font-serif font-bold text-on-surface">Chưa có từ vựng cần ôn tập</h2>
+        <p className="text-xs sm:text-sm text-on-surface-muted font-sans mt-2 leading-relaxed">
+          Kho từ vựng của bạn hiện chưa có thẻ nào. Hãy bôi đen tra từ trên web bằng Chrome Extension hoặc thêm thẻ mới trong mục "Kho từ".
+        </p>
+        <motion.button
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
+          onClick={onFinish}
+          className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary hover:bg-primary-hover text-white font-medium text-xs sm:text-sm transition-colors shadow-academic cursor-pointer mt-2"
+        >
+          <ArrowLeft className="w-4 h-4 stroke-[1.5]" />
+          <span>Về trang Tổng quan</span>
+        </motion.button>
+      </motion.div>
+    );
+  }
+
   if (sessionCompleted || !currentCard) {
+    const successCount = sessionRatings.filter((r) => r >= 3).length;
+    const sessionRetention =
+      sessionRatings.length > 0 ? Math.round((successCount / sessionRatings.length) * 100) : 100;
+
     return (
       <motion.div
         initial={{ opacity: 0, scale: 0.92, y: 15 }}
@@ -192,7 +226,7 @@ export const StudyDeckView: React.FC<StudyDeckViewProps> = ({
           <div className="h-8 w-px bg-outline-hairline" />
           <div>
             <span className="text-[11px] text-on-surface-muted block font-sans">Khả năng nhớ</span>
-            <span className="font-mono text-xl font-bold text-emerald-600">~92%</span>
+            <span className="font-mono text-xl font-bold text-emerald-600">~{sessionRetention}%</span>
           </div>
         </div>
 

@@ -98,37 +98,57 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span>Khu vực Ôn tập Hôm nay</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-serif font-bold text-on-surface leading-snug">
-            {dueCards.length > 0
+            {totalCards === 0
+              ? 'Kho từ vựng của bạn đang trống'
+              : dueCards.length > 0
               ? `Bạn có ${dueCards.length} từ vựng cần ôn lại ngay bây giờ`
               : 'Tuyệt vời! Bạn đã hoàn thành tất cả thẻ đến hạn'}
           </h2>
           <p className="text-xs sm:text-sm text-on-surface-muted font-sans mt-2 leading-relaxed">
-            Thuật toán FSRS tính toán thời điểm vàng giúp ngăn chặn đường cong quên lãng
-            kèm ngữ cảnh câu văn gốc bạn đã tra khi đọc báo.
+            {totalCards === 0
+              ? 'Hãy bôi đen tra từ trên web bằng Chrome Extension hoặc thêm thẻ mới để kích hoạt thuật toán FSRS ngăn chặn đường cong quên lãng.'
+              : 'Thuật toán FSRS tính toán thời điểm vàng giúp ngăn chặn đường cong quên lãng kèm ngữ cảnh câu văn gốc bạn đã tra khi đọc báo.'}
           </p>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 mt-5">
-            <motion.button
-              whileHover={{ scale: 1.03, y: -2 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={onStartStudy}
-              disabled={cards.length === 0}
-              className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-primary hover:bg-primary-hover text-white font-sans font-semibold text-sm transition-colors shadow-academic disabled:opacity-50 cursor-pointer"
-            >
-              <Layers className="w-4 h-4 stroke-[1.8]" />
-              <span>{dueCards.length > 0 ? 'Bắt đầu phiên học 10 phút' : 'Ôn tập tự do'}</span>
-              <ArrowRight className="w-4 h-4 stroke-[1.8]" />
-            </motion.button>
+            {totalCards === 0 ? (
+              <>
+                <motion.button
+                  whileHover={{ scale: 1.03, y: -2 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={onOpenLibrary}
+                  className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-primary hover:bg-primary-hover text-white font-sans font-semibold text-sm transition-colors shadow-academic cursor-pointer"
+                >
+                  <BookOpen className="w-4 h-4 stroke-[1.8]" />
+                  <span>Tạo thẻ từ vựng đầu tiên</span>
+                  <ArrowRight className="w-4 h-4 stroke-[1.8]" />
+                </motion.button>
+              </>
+            ) : (
+              <>
+                <motion.button
+                  whileHover={{ scale: 1.03, y: -2 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={onStartStudy}
+                  disabled={cards.length === 0}
+                  className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-primary hover:bg-primary-hover text-white font-sans font-semibold text-sm transition-colors shadow-academic disabled:opacity-50 cursor-pointer"
+                >
+                  <Layers className="w-4 h-4 stroke-[1.8]" />
+                  <span>{dueCards.length > 0 ? 'Bắt đầu phiên học 10 phút' : 'Ôn tập tự do'}</span>
+                  <ArrowRight className="w-4 h-4 stroke-[1.8]" />
+                </motion.button>
 
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={onOpenLibrary}
-              className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-surface-lowest hover:bg-surface-container text-on-surface font-sans text-sm font-medium border border-outline-hairline transition-colors cursor-pointer shadow-sm"
-            >
-              <BookOpen className="w-4 h-4 stroke-[1.8]" />
-              <span>Xem kho {totalCards} từ đã lưu</span>
-            </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={onOpenLibrary}
+                  className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-surface-lowest hover:bg-surface-container text-on-surface font-sans text-sm font-medium border border-outline-hairline transition-colors cursor-pointer shadow-sm"
+                >
+                  <BookOpen className="w-4 h-4 stroke-[1.8]" />
+                  <span>Xem kho {totalCards} từ đã lưu</span>
+                </motion.button>
+              </>
+            )}
           </div>
         </div>
       </motion.div>

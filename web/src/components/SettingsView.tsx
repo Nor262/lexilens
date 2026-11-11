@@ -29,8 +29,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onUpdateTarget,
   onResetData,
 }) => {
-  const [syncStatus, setSyncStatus] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState<boolean>(false);
   const [geminiKey, setGeminiKey] = useState<string>(
     localStorage.getItem('lexilens_gemini_key') || ''
   );
@@ -49,29 +47,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     localStorage.setItem('lexilens_gemini_key', geminiKey.trim());
     setKeySaved(true);
     setTimeout(() => setKeySaved(false), 2500);
-  };
-
-  const handleSyncWithExtension = () => {
-    setSyncing(true);
-    setSyncStatus('Đang tìm kiếm Chrome Extension LexiLens trên trình duyệt...');
-
-    window.postMessage(
-      {
-        type: 'LEXILENS_WEB_HANDSHAKE',
-        payload: {
-          timestamp: Date.now(),
-          origin: window.location.origin,
-        },
-      },
-      '*'
-    );
-
-    setTimeout(() => {
-      setSyncing(false);
-      setSyncStatus(
-        'Đã phát tín hiệu đồng bộ! Mở tiện ích LexiLens trên Chrome để hoàn tất bắt tay (Handshake).'
-      );
-    }, 1200);
   };
 
   // Google OAuth Login
@@ -146,34 +121,31 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {/* Extension Sync Bridge Card */}
       <div className="p-4 sm:p-5 rounded-xl bg-surface-lowest border border-primary/20 shadow-academic space-y-3.5">
         <div className="flex items-start gap-3">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-primary-tint/40 flex items-center justify-center text-primary shrink-0">
-            <Share2 className="w-4 h-4 sm:w-5 sm:h-5 stroke-[1.5]" />
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600 shrink-0">
+            <CheckCircle className="w-5 h-5 stroke-[1.8]" />
           </div>
-          <div>
-            <h3 className="font-serif font-bold text-sm sm:text-base text-on-surface">
-              Cầu nối Đồng bộ với Chrome Extension
-            </h3>
-            <p className="text-xs text-on-surface-muted font-sans mt-0.5">
-              Tự động nhận diện và đồng bộ từ vựng đã tra khi đọc báo trên laptop sang Web App
-              điện thoại.
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <h3 className="font-serif font-bold text-sm sm:text-base text-on-surface">
+                Tự động Đồng bộ Đám mây 2 Chiều
+              </h3>
+              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 border border-emerald-500/30">
+                Tự động
+              </span>
+            </div>
+            <p className="text-xs text-on-surface-muted font-sans mt-1 leading-relaxed">
+              Mọi từ vựng bạn tra và lưu từ Chrome Extension sẽ tự động xuất hiện ngay trên Web App này thông qua tài khoản Supabase Cloud chung. Bạn không cần phải bấm nút đồng bộ thủ công.
             </p>
           </div>
         </div>
 
-        <button
-          onClick={handleSyncWithExtension}
-          disabled={syncing}
-          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs sm:text-sm font-sans font-medium transition-colors shadow-sm disabled:opacity-50 active:scale-98"
-        >
-          <RefreshCw className={`w-4 h-4 stroke-[1.5] ${syncing ? 'animate-spin' : ''}`} />
-          <span>{syncing ? 'Đang đồng bộ...' : 'Kích hoạt Đồng bộ Extension'}</span>
-        </button>
-
-        {syncStatus && (
-          <div className="p-2.5 sm:p-3 rounded-lg bg-surface-container text-xs text-on-surface-muted font-sans border border-outline-hairline leading-relaxed">
-            {syncStatus}
-          </div>
-        )}
+        <div className="p-3 rounded-lg bg-surface-container border border-outline-hairline/80 flex items-center justify-between text-xs font-sans text-on-surface-muted">
+          <span className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            Tài khoản đồng bộ: <strong className="text-on-surface font-mono">{profile.email || 'Chưa đăng nhập'}</strong>
+          </span>
+          <span className="text-[11px] text-emerald-600 font-medium">Đám mây kết nối sẵn sàng</span>
+        </div>
       </div>
 
       {/* Supabase Cloud Connection & Account */}

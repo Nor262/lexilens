@@ -352,6 +352,7 @@ function initLexiLens() {
 
   const host = document.createElement('div');
   host.id = 'lexilens-host';
+  host.style.setProperty('all', 'initial', 'important');
   host.style.setProperty('position', 'fixed', 'important');
   host.style.setProperty('top', '0', 'important');
   host.style.setProperty('left', '0', 'important');
@@ -368,6 +369,7 @@ function initLexiLens() {
   const shadowRoot = host.attachShadow({ mode: 'open' });
   const mountPoint = document.createElement('div');
   mountPoint.id = 'lexilens-root';
+  mountPoint.style.setProperty('all', 'initial', 'important');
   mountPoint.style.setProperty('position', 'fixed', 'important');
   mountPoint.style.setProperty('top', '0', 'important');
   mountPoint.style.setProperty('left', '0', 'important');

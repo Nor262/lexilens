@@ -343,6 +343,20 @@ export async function getReviews(userId?: string): Promise<ReviewLog[]> {
  * Calculate dynamic metrics based on real card states and review history
  */
 export function calculateDynamicStats(cards: Flashcard[], reviews: ReviewLog[]) {
+  if (!reviews || reviews.length === 0) {
+    const now = new Date();
+    return {
+      streak: 0,
+      retention: 0,
+      totalReviews: 0,
+      heatmapDays: Array.from({ length: 84 }, (_, i) => ({
+        date: new Date(now.getTime() - (83 - i) * 86400000).toISOString().slice(0, 10),
+        dayIndex: i,
+        count: 0,
+      })),
+    };
+  }
+
   // 1. Calculate genuine learning streak
   const reviewDatesSet = new Set<string>();
   reviews.forEach((r) => {
@@ -365,7 +379,7 @@ export function calculateDynamicStats(cards: Flashcard[], reviews: ReviewLog[]) 
   }
 
   // 2. Retention rate calculation: (Good + Easy reviews) / Total reviews
-  let retention = 85;
+  let retention = 0;
   if (reviews.length > 0) {
     const successful = reviews.filter((r) => r.rating === 3 || r.rating === 4).length;
     retention = Math.round((successful / reviews.length) * 100);
@@ -384,8 +398,8 @@ export function calculateDynamicStats(cards: Flashcard[], reviews: ReviewLog[]) 
   });
 
   return {
-    streak: Math.max(streak, 1),
-    retention: Math.min(Math.max(retention, 60), 99),
+    streak,
+    retention,
     totalReviews: reviews.length,
     heatmapDays,
   };

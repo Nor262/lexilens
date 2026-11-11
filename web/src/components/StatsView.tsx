@@ -31,7 +31,9 @@ export const StatsView: React.FC<StatsViewProps> = ({ cards, reviews, profile })
           Thống Kê Trí Nhớ & Tiến Độ Học
         </h2>
         <p className="text-[11px] sm:text-xs text-on-surface-muted font-sans">
-          Dữ liệu thống kê thực tế tính toán từ {totalReviews} lượt ôn tập theo mô hình FSRS
+          {totalReviews > 0
+            ? `Dữ liệu thống kê thực tế tính toán từ ${totalReviews} lượt ôn tập theo mô hình FSRS`
+            : 'Chưa có lượt ôn tập nào. Hãy bắt đầu ôn tập thẻ để hệ thống tính toán tỷ lệ nhớ FSRS.'}
         </p>
       </div>
 
