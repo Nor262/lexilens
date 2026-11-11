@@ -6,6 +6,8 @@ import {
   BarChart2,
   Settings,
   Sparkles,
+  Download,
+  Puzzle,
 } from 'lucide-react';
 
 export type TabType = 'dashboard' | 'study' | 'library' | 'stats' | 'settings';
@@ -21,12 +23,14 @@ interface NavigationProps {
   activeTab: TabType;
   setActiveTab: (tab: TabType) => void;
   dueCount: number;
+  onOpenInstallModal: () => void;
 }
 
 export const Navigation: React.FC<NavigationProps> = ({
   activeTab,
   setActiveTab,
   dueCount,
+  onOpenInstallModal,
 }) => {
   const navItems: NavItem[] = [
     { id: 'dashboard', label: 'Tổng quan', icon: LayoutDashboard },
@@ -60,44 +64,54 @@ export const Navigation: React.FC<NavigationProps> = ({
             </div>
           </div>
 
-          {/* Desktop Navigation Links */}
-          <nav className="hidden md:flex items-center gap-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  className={`relative flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-surface-container text-primary font-semibold'
-                      : 'text-on-surface-muted hover:text-on-surface hover:bg-surface-low'
-                  }`}
-                >
-                  <Icon className="w-4 h-4 stroke-[1.5]" />
-                  <span>{item.label}</span>
-                  {item.badge !== undefined && (
-                    <span className="ml-1 bg-primary text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full">
-                      {item.badge}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </nav>
+          {/* Desktop Navigation Links & Download Button */}
+          <div className="hidden md:flex items-center gap-3">
+            <nav className="flex items-center gap-1">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveTab(item.id)}
+                    className={`relative flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'bg-surface-container text-primary font-semibold'
+                        : 'text-on-surface-muted hover:text-on-surface hover:bg-surface-low'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 stroke-[1.5]" />
+                    <span>{item.label}</span>
+                    {item.badge !== undefined && (
+                      <span className="ml-1 bg-primary text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full">
+                        {item.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
 
-          {/* Mobile Right Quick Indicator */}
+            <div className="h-5 w-px bg-outline-hairline" />
+
+            <button
+              onClick={onOpenInstallModal}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary-tint/35 hover:bg-primary-tint/50 text-primary border border-primary/20 text-xs font-medium font-sans transition-all active:scale-95 shadow-sm"
+            >
+              <Puzzle className="w-3.5 h-3.5 stroke-[2]" />
+              <span>Cài Extension (.zip)</span>
+            </button>
+          </div>
+
+          {/* Mobile Right Quick Action: Download Extension button */}
           <div className="md:hidden flex items-center gap-2">
-            {dueCount > 0 && (
-              <button
-                onClick={() => setActiveTab('study')}
-                className="flex items-center gap-1 text-[11px] font-medium bg-primary-tint/40 text-primary px-2.5 py-1 rounded-full border border-primary/20"
-              >
-                <Layers className="w-3 h-3 stroke-[2]" />
-                <span>{dueCount} từ cần ôn</span>
-              </button>
-            )}
+            <button
+              onClick={onOpenInstallModal}
+              className="flex items-center gap-1 text-[11px] font-medium bg-primary-tint/35 text-primary px-2.5 py-1 rounded-full border border-primary/25 active:scale-95"
+            >
+              <Puzzle className="w-3.5 h-3.5 stroke-[2]" />
+              <span>Tải Extension</span>
+            </button>
           </div>
         </div>
       </header>

@@ -16,6 +16,7 @@ interface DashboardViewProps {
   profile: UserProfile;
   onStartStudy: () => void;
   onOpenLibrary: () => void;
+  onOpenInstallModal: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -23,6 +24,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   profile,
   onStartStudy,
   onOpenLibrary,
+  onOpenInstallModal,
 }) => {
   const now = new Date();
   const dueCards = cards.filter((c) => new Date(c.due) <= now);
@@ -96,6 +98,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             >
               <BookOpen className="w-4 h-4 stroke-[1.5]" />
               <span>Xem kho {totalCards} từ đã lưu</span>
+            </button>
+
+            <button
+              onClick={onOpenInstallModal}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary-tint/20 hover:bg-primary-tint/35 text-primary font-sans text-sm border border-primary/25 transition-colors active:scale-98"
+            >
+              <span>Tải Extension Chrome (.zip)</span>
             </button>
           </div>
         </div>

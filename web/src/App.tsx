@@ -5,6 +5,7 @@ import { StudyDeckView } from './components/StudyDeckView';
 import { LibraryView } from './components/LibraryView';
 import { StatsView } from './components/StatsView';
 import { SettingsView } from './components/SettingsView';
+import { InstallExtensionModal } from './components/InstallExtensionModal';
 import { Flashcard, ReviewLog, UserProfile, FSRSRating } from './types';
 import {
   getCards,
@@ -20,6 +21,7 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [reviews, setReviews] = useState<ReviewLog[]>([]);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState<boolean>(false);
   const [profile, setProfile] = useState<UserProfile>({
     id: 'guest',
     display_name: 'Học viên NNA',
@@ -144,6 +146,7 @@ export const App: React.FC = () => {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         dueCount={dueCount}
+        onOpenInstallModal={() => setIsInstallModalOpen(true)}
       />
 
       <main className="flex-1 max-w-5xl w-full mx-auto px-3.5 sm:px-6 md:px-8 pt-3.5 sm:pt-6 pb-24 md:pb-12">
@@ -153,6 +156,7 @@ export const App: React.FC = () => {
             profile={profile}
             onStartStudy={() => setActiveTab('study')}
             onOpenLibrary={() => setActiveTab('library')}
+            onOpenInstallModal={() => setIsInstallModalOpen(true)}
           />
         )}
 
@@ -188,6 +192,12 @@ export const App: React.FC = () => {
           />
         )}
       </main>
+
+      <InstallExtensionModal
+        isOpen={isInstallModalOpen}
+        onClose={() => setIsInstallModalOpen(false)}
+        downloadUrl="/lexilens-extension.zip"
+      />
     </div>
   );
 };
