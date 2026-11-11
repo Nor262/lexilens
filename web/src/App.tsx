@@ -75,7 +75,7 @@ export const App: React.FC = () => {
         dueCount={dueCount}
       />
 
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 md:px-8 pt-6">
+      <main className="flex-1 max-w-5xl w-full mx-auto px-3.5 sm:px-6 md:px-8 pt-4 md:pt-6 pb-24 md:pb-12">
         {activeTab === 'dashboard' && (
           <DashboardView
             cards={cards}
